@@ -3,7 +3,12 @@
 const DOWNLOAD_DURATION_MS = 6000;
 const UPLOAD_DURATION_MS = 5000;
 const DOWNLOAD_CHUNK_BYTES = 4_000_000;
-const UPLOAD_CHUNK_BYTES = 2_000_000;
+// 업로드는 fetch 특성상 청크가 완전히 끝나야만 바이트가 집계된다(다운로드는
+// 스트림이라 부분 청크도 집계됨). 즉 청크 하나를 duration+grace 안에 못 끝내는
+// 회선은 0.0Mbps로 나온다 — 실제로는 느릴 뿐인데 "0"으로 오인될 수 있다.
+// 이 하한선(=chunkBytes*8/(duration+grace))을 낮게 유지하기 위해 청크를
+// 작게 잡는다: 300,000바이트 기준 하한 약 0.37Mbps.
+const UPLOAD_CHUNK_BYTES = 300_000;
 
 const state = {
   networkOk: false,
