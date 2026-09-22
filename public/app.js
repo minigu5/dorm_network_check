@@ -11,6 +11,7 @@ const state = {
   lat: null, lng: null, accuracy: null,
   dormLat: null, dormLng: null, // 서버가 알려주는 기숙사 기준 좌표(비교용 표시)
   locationBranch: null, // "indoor" | "outdoor"
+  indoorType: null, // "room" | "corridor" | null (실내 폼에서 아직 선택 안 함)
   manualOverride: false, // 사용자가 경고를 보고 직접 실내/외부 폼을 뒤집었는지
   form: {},
   measurement: null, // set once measureDownload/measureUpload/measurePing succeed
@@ -93,6 +94,8 @@ async function step1CheckNetwork() {
     state.networkOk = true;
     state.carrier = body.carrier;
     el("network-status").textContent = `모바일 데이터 연결 확인됨 (통신사: ${state.carrier}).`;
+    el("carrier-badge").textContent = `통신사: ${state.carrier}`;
+    show("carrier-badge");
     await step2CheckLocation();
   } catch (err) {
     // 첫 화면부터 오류 처리가 없으면 사용자가 "네트워크 확인 중..."에 영구히
@@ -151,18 +154,31 @@ async function step2CheckLocation() {
   );
 }
 
-function updateIndoorFieldVisibility() {
-  const isCorridor = el("input-is-corridor-yes").checked;
-  if (isCorridor) {
+// 선택 전에는 층/호실 둘 다 숨겨둔다. "방 안"/"복도" 버튼을 눌러야만
+// 해당하는 입력 필드가 나타난다(대충 아무 값이나 채우고 넘어가는 것을 막기 위함).
+function selectIndoorType(type) {
+  state.indoorType = type;
+  el("btn-select-room").classList.toggle("selected", type === "room");
+  el("btn-select-corridor").classList.toggle("selected", type === "corridor");
+  if (type === "corridor") {
     show("label-floor");
     hide("label-room");
   } else {
     hide("label-floor");
     show("label-room");
   }
+  hide("indoor-validation-error");
 }
-el("input-is-corridor-yes").addEventListener("change", updateIndoorFieldVisibility);
-el("input-is-corridor-no").addEventListener("change", updateIndoorFieldVisibility);
+el("btn-select-room").addEventListener("click", () => selectIndoorType("room"));
+el("btn-select-corridor").addEventListener("click", () => selectIndoorType("corridor"));
+
+function resetIndoorSelection() {
+  state.indoorType = null;
+  el("btn-select-room").classList.remove("selected");
+  el("btn-select-corridor").classList.remove("selected");
+  hide("label-floor");
+  hide("label-room");
+}
 
 // 실내/외부 폼 양쪽에서 내 GPS와 기숙사 기준 좌표를 2줄로 나란히 보여준다.
 // 실내에서도 판정 근거(왜 실내로 잡혔는지)를 사용자가 직접 확인할 수 있게 하기 위함.
@@ -181,7 +197,7 @@ function goToIndoorForm() {
   hide("step-measuring");
   hide("step-form-outdoor");
   state.locationBranch = "indoor";
-  updateIndoorFieldVisibility();
+  resetIndoorSelection();
   renderGpsInfo("indoor-coords");
   show("step-form-indoor");
 }
@@ -218,8 +234,7 @@ el("btn-outdoor-to-indoor").addEventListener("click", () => switchBranchManually
 
 function buildSummary() {
   if (state.locationBranch === "indoor") {
-    const isCorridor = el("input-is-corridor-yes").checked;
-    return isCorridor
+    return state.indoorType === "corridor"
       ? { room: "", corridor: el("input-floor").value }
       : { room: el("input-room").value, corridor: "" };
   }
@@ -229,8 +244,8 @@ function buildSummary() {
 }
 
 function validateIndoorForm() {
-  const isCorridor = el("input-is-corridor-yes").checked;
-  const id = isCorridor ? "input-floor" : "input-room";
+  if (!state.indoorType) return false;
+  const id = state.indoorType === "corridor" ? "input-floor" : "input-room";
   return el(id).value.trim() !== "";
 }
 

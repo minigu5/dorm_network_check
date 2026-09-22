@@ -16,6 +16,8 @@
     #indoor-validation-error { color: #c0392b; }
     #measuring-progress { width: 100%; height: 20px; }
     .gps-info { line-height: 1.4; min-height: 2.8em; font-size: 14px; color: #444; }
+    .indoor-type-btn { background: #eee; color: #333; border: 1px solid #ccc; }
+    .indoor-type-btn.selected { background: #2980b9; color: #fff; border-color: #2980b9; }
     .history-item {
       border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px;
       margin-bottom: 10px; font-size: 14px; line-height: 1.5;
@@ -27,6 +29,7 @@
 <body>
   <main class="container">
     <h1>기숙사 모바일 데이터 속도 측정</h1>
+    <p id="carrier-badge" class="gps-info" hidden></p>
 
     <section id="step-network">
       <p id="network-status">네트워크 확인 중...</p>
@@ -40,11 +43,8 @@
     <section id="step-form-indoor" hidden>
       <h2>실내 측정 정보</h2>
       <p id="indoor-coords" class="gps-info"></p>
-      <fieldset>
-        <legend>복도인가요?</legend>
-        <label><input type="radio" name="is-corridor" id="input-is-corridor-yes" value="yes" /> 예</label>
-        <label><input type="radio" name="is-corridor" id="input-is-corridor-no" value="no" checked /> 아니오</label>
-      </fieldset>
+      <button type="button" id="btn-select-room" class="indoor-type-btn">기숙사 방 안입니다.</button>
+      <button type="button" id="btn-select-corridor" class="indoor-type-btn">기숙사 복도입니다.</button>
       <label id="label-floor" hidden>층
         <select id="input-floor">
           <option value="">선택하세요</option>
@@ -55,10 +55,10 @@
           <option value="5층">5층</option>
         </select>
       </label>
-      <label id="label-room">호실
+      <label id="label-room" hidden>호실
         <input id="input-room" type="text" placeholder="101호" />
       </label>
-      <p id="indoor-validation-error" hidden>층 또는 호실을 입력해 주세요.</p>
+      <p id="indoor-validation-error" hidden>방 안인지 복도인지 먼저 선택하고, 층/호실을 입력해 주세요.</p>
       <button id="btn-indoor-next">다음</button>
       <button id="btn-indoor-to-outdoor" type="button">사실 기숙사 밖이에요. (직접 변경)</button>
     </section>
