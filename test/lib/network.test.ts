@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getCfProperties, isMobileCarrierOrg } from "../../src/lib/network";
+import {
+  getCfProperties,
+  getClientIp,
+  isMobileCarrierOrg,
+  detectCarrier,
+  isBlockedWifiIp,
+} from "../../src/lib/network";
 
 describe("isMobileCarrierOrg", () => {
   it("SK Telecom 계열은 모바일망으로 판정", () => {
@@ -37,5 +43,52 @@ describe("getCfProperties", () => {
     const props = getCfProperties(req);
     expect(props.asn).toBeNull();
     expect(props.asOrganization).toBeNull();
+  });
+});
+
+describe("getClientIp", () => {
+  it("CF-Connecting-IP 헤더를 읽는다", () => {
+    const req = new Request("https://example.com/", {
+      headers: { "CF-Connecting-IP": "221.168.22.149" },
+    });
+    expect(getClientIp(req)).toBe("221.168.22.149");
+  });
+
+  it("헤더 없으면 null", () => {
+    const req = new Request("https://example.com/");
+    expect(getClientIp(req)).toBeNull();
+  });
+});
+
+describe("detectCarrier", () => {
+  it("SK Telecom 계열은 SKT로 판정", () => {
+    expect(detectCarrier("SK Telecom Co., Ltd.")).toBe("SKT");
+  });
+  it("KT 계열은 KT로 판정", () => {
+    expect(detectCarrier("KT Corporation")).toBe("KT");
+  });
+  it("LG Uplus 계열은 LGU+로 판정", () => {
+    expect(detectCarrier("LG Uplus Corp")).toBe("LGU+");
+  });
+  it("대소문자 무시", () => {
+    expect(detectCarrier("sk telecom co")).toBe("SKT");
+  });
+  it("학교/기타망은 null", () => {
+    expect(detectCarrier("Some University Network")).toBeNull();
+  });
+  it("null은 null", () => {
+    expect(detectCarrier(null)).toBeNull();
+  });
+});
+
+describe("isBlockedWifiIp", () => {
+  it("차단 목록에 있는 IP는 true", () => {
+    expect(isBlockedWifiIp("221.168.22.149")).toBe(true);
+  });
+  it("차단 목록에 없는 IP는 false", () => {
+    expect(isBlockedWifiIp("1.2.3.4")).toBe(false);
+  });
+  it("null은 false", () => {
+    expect(isBlockedWifiIp(null)).toBe(false);
   });
 });

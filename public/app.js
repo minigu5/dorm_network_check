@@ -1,5 +1,13 @@
+// 다운로드/업로드 측정은 "고정 크기"가 아니라 "고정 시간" 동안 반복 요청한다.
+// 회선 속도와 무관하게 총 측정 시간을 비슷하게 유지하기 위함(speedtest.net과 동일한 방식).
+const DOWNLOAD_DURATION_MS = 6000;
+const UPLOAD_DURATION_MS = 5000;
+const DOWNLOAD_CHUNK_BYTES = 4_000_000;
+const UPLOAD_CHUNK_BYTES = 2_000_000;
+
 const state = {
   networkOk: false,
+  carrier: null, // 서버가 자동 감지한 통신사(SKT/KT/LGU+), 사용자가 직접 선택하지 않음
   lat: null, lng: null, accuracy: null,
   locationBranch: null, // "indoor" | "outdoor"
   form: {},
@@ -23,7 +31,8 @@ async function step1CheckNetwork() {
     }
     hide("btn-network-retry");
     state.networkOk = true;
-    el("network-status").textContent = "모바일 데이터 연결 확인됨.";
+    state.carrier = body.carrier;
+    el("network-status").textContent = `모바일 데이터 연결 확인됨 (통신사: ${state.carrier}).`;
     await step2CheckLocation();
   } catch (err) {
     // 첫 화면부터 오류 처리가 없으면 사용자가 "네트워크 확인 중..."에 영구히
@@ -99,7 +108,6 @@ function goToOutdoorForm() {
 function buildSummary() {
   if (state.locationBranch === "indoor") {
     return {
-      carrier: el("input-carrier-indoor").value,
       dong: el("input-dong").value,
       floor: el("input-floor").value,
       room: el("input-room").value,
@@ -107,7 +115,6 @@ function buildSummary() {
     };
   }
   return {
-    carrier: el("input-carrier-outdoor").value,
     note: el("input-note").value,
   };
 }
@@ -130,7 +137,7 @@ function goToConfirm() {
   hide("step-form-indoor");
   hide("step-form-outdoor");
   el("confirm-summary").textContent = JSON.stringify(
-    { branch: state.locationBranch, lat: state.lat, lng: state.lng, ...state.form },
+    { branch: state.locationBranch, carrier: state.carrier, lat: state.lat, lng: state.lng, ...state.form },
     null,
     2
   );
@@ -155,24 +162,7 @@ el("btn-confirm-start").addEventListener("click", () => {
   }
 });
 
-async function measureDownload() {
-  const sizes = [1_000_000, 5_000_000, 20_000_000];
-  const samples = [];
-  for (const size of sizes) {
-    const start = performance.now();
-    const res = await fetch(`/api/download?size=${size}`, { cache: "no-store" });
-    await res.arrayBuffer();
-    const elapsed = performance.now() - start;
-    samples.push({ size, mbps: computeThroughputMbps(size, elapsed) });
-  }
-  // 스펙 §10: 워밍업 구간을 제외하고 마지막 2~3구간 평균을 사용한다.
-  const lastTwo = samples.slice(-2);
-  const mbps = lastTwo.reduce((sum, s) => sum + s.mbps, 0) / lastTwo.length;
-  return { mbps, samples };
-}
-
-async function measureUpload() {
-  const size = 5_000_000;
+function makeRandomChunk(size) {
   const data = new Uint8Array(size);
   // src/handlers/download.ts의 handleDownload와 동일한 패턴: 압축으로 인한
   // 처리량 왜곡을 막기 위해 앞부분만 실제 난수로 채우고 나머지는 반복한다.
@@ -180,15 +170,61 @@ async function measureUpload() {
   for (let offset = 65536; offset < size; offset += 65536) {
     data.set(data.subarray(0, Math.min(65536, size - offset)), offset);
   }
-  const start = performance.now();
-  await fetch("/api/upload", { method: "POST", body: data });
-  const elapsed = performance.now() - start;
-  return computeThroughputMbps(size, elapsed);
+  return data;
 }
 
-async function measurePing() {
+// 고정 크기 대신 고정 시간(durationMs) 동안 반복 요청해서, 회선 속도와 무관하게
+// 총 측정 시간을 비슷하게 유지한다(speedtest.net과 같은 방식). onProgress로
+// 경과시간/전체시간/현재까지의 처리량을 알려줘 진행 상황을 표시할 수 있게 한다.
+async function measureDownload(durationMs, onProgress) {
+  const startTime = performance.now();
+  let totalBytes = 0;
+
+  while (performance.now() - startTime < durationMs) {
+    const res = await fetch(`/api/download?size=${DOWNLOAD_CHUNK_BYTES}`, { cache: "no-store" });
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.length;
+      const elapsedMs = performance.now() - startTime;
+      onProgress({ elapsedMs, totalMs: durationMs, mbps: computeThroughputMbps(totalBytes, elapsedMs) });
+      if (elapsedMs >= durationMs) {
+        // 시간 다 됐으면 현재 청크는 중단한다. 이미 받은 바이트는 totalBytes에
+        // 그대로 남아있으므로 부분 청크도 정확히 집계된다.
+        reader.cancel().catch(() => {});
+        break;
+      }
+    }
+  }
+
+  const elapsedMs = performance.now() - startTime;
+  return { mbps: computeThroughputMbps(totalBytes, elapsedMs), totalBytes, elapsedMs };
+}
+
+async function measureUpload(durationMs, onProgress) {
+  const chunk = makeRandomChunk(UPLOAD_CHUNK_BYTES);
+  const startTime = performance.now();
+  let totalBytes = 0;
+
+  // 업로드는 fetch만으로는 전송 도중 진행률을 알 수 없어(브라우저 호환성 문제),
+  // 청크 단위로만 진행률을 갱신한다. 마지막 청크가 끝날 때까지는 목표 시간을
+  // 살짝 넘길 수 있다(다운로드처럼 중간에 끊지 않음).
+  while (performance.now() - startTime < durationMs) {
+    await fetch("/api/upload", { method: "POST", body: chunk });
+    totalBytes += chunk.byteLength;
+    const elapsedMs = performance.now() - startTime;
+    onProgress({ elapsedMs, totalMs: durationMs, mbps: computeThroughputMbps(totalBytes, elapsedMs) });
+  }
+
+  const elapsedMs = performance.now() - startTime;
+  return { mbps: computeThroughputMbps(totalBytes, elapsedMs), totalBytes, elapsedMs };
+}
+
+async function measurePing(onProgress) {
+  const total = 20;
   const samples = [];
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < total; i++) {
     const start = performance.now();
     try {
       const controller = new AbortController();
@@ -199,6 +235,7 @@ async function measurePing() {
     } catch {
       samples.push(null);
     }
+    onProgress({ done: i + 1, total });
   }
   return { samples, stats: computePingStats(samples) };
 }
@@ -208,25 +245,39 @@ async function runMeasurementAndSubmit() {
   hide("btn-measuring-retry");
   show("step-measuring");
 
+  el("measuring-progress").value = 0;
+
+  function showTimedProgress(label, p) {
+    const pct = Math.min(100, Math.round((p.elapsedMs / p.totalMs) * 100));
+    const remainingSec = Math.max(0, Math.ceil((p.totalMs - p.elapsedMs) / 1000));
+    el("measuring-status").textContent =
+      `${label} 측정 중... 약 ${remainingSec}초 남음 (현재 ${p.mbps.toFixed(1)} Mbps)`;
+    el("measuring-progress").value = pct;
+  }
+
   try {
-    el("measuring-status").textContent = "다운로드 측정 중...";
-    const download = await measureDownload();
+    const download = await measureDownload(DOWNLOAD_DURATION_MS, (p) => showTimedProgress("다운로드", p));
 
-    el("measuring-status").textContent = "업로드 측정 중...";
-    const upload_mbps = await measureUpload();
+    const upload = await measureUpload(UPLOAD_DURATION_MS, (p) => showTimedProgress("업로드", p));
 
-    el("measuring-status").textContent = "핑/지터 측정 중...";
-    const { samples: pingSamples, stats } = await measurePing();
+    const { samples: pingSamples, stats } = await measurePing((p) => {
+      el("measuring-status").textContent = `핑/지터 측정 중... (${p.done}/${p.total})`;
+      el("measuring-progress").value = Math.round((p.done / p.total) * 100);
+    });
 
     // 측정 결과를 state에 보관해두면, 이후 제출이 실패(예: 통금 경계 전환으로
     // 인한 400)해도 다시 측정할 필요 없이 제출만 재시도할 수 있다.
     state.measurement = {
       download_mbps: download.mbps,
-      upload_mbps,
+      upload_mbps: upload.mbps,
       ping_ms: stats.ping_ms,
       jitter_ms: stats.jitter_ms,
       packet_loss_pct: stats.packet_loss_pct,
-      raw_samples: { ping: pingSamples, download: download.samples },
+      raw_samples: {
+        ping: pingSamples,
+        download_bytes: download.totalBytes, download_ms: download.elapsedMs,
+        upload_bytes: upload.totalBytes, upload_ms: upload.elapsedMs,
+      },
     };
 
     await submitMeasurement();
@@ -249,7 +300,7 @@ async function submitMeasurement() {
 
   const body = {
     lat: state.lat, lng: state.lng, accuracy_m: state.accuracy,
-    carrier: state.form.carrier,
+    carrier: state.carrier,
     dong: state.form.dong, floor: state.form.floor,
     room: state.form.room, corridor: state.form.corridor,
     note: state.form.note,
@@ -292,9 +343,6 @@ async function submitMeasurement() {
     // GPS 확인 시점(T0)과 제출 시점(T1) 사이에 통금 경계를 넘어가 서버가
     // 실내로 재판정한 경우. 이미 측정한 값은 유지한 채 실내 폼으로 보내
     // 동/층/호실/복도만 추가로 받는다(측정은 다시 하지 않는다).
-    if (state.form.carrier) {
-      el("input-carrier-indoor").value = state.form.carrier;
-    }
     goToIndoorForm();
     return;
   }

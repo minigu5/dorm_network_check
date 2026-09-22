@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { getCfProperties, isMobileCarrierOrg } from "../lib/network";
+import { getCfProperties, getClientIp, detectCarrier, isBlockedWifiIp } from "../lib/network";
 import { isWithinGeofence } from "../lib/geo";
 import { isCurfewWindow, resolveLocationTag, type RawLocationTag } from "../lib/curfew";
 import { CURFEW_RADIUS_M, DEFAULT_RADIUS_M } from "../config";
@@ -10,7 +10,6 @@ interface SubmitBody {
   lat: number | null;
   lng: number | null;
   accuracy_m: number | null;
-  carrier: string;
   dong?: string;
   floor?: string;
   room?: string;
@@ -37,7 +36,11 @@ export async function handleSubmit(
   now: Date = new Date()
 ): Promise<Response> {
   const { asOrganization } = getCfProperties(request);
-  if (!isMobileCarrierOrg(asOrganization)) {
+  if (isBlockedWifiIp(getClientIp(request))) {
+    return badRequest("mobile carrier network required");
+  }
+  const carrier = detectCarrier(asOrganization);
+  if (carrier === null) {
     return badRequest("mobile carrier network required");
   }
 
@@ -47,11 +50,6 @@ export async function handleSubmit(
   } catch {
     return badRequest("invalid JSON body");
   }
-
-  if (typeof body.carrier !== "string" || body.carrier.trim() === "") {
-    return badRequest("carrier is required");
-  }
-  const carrier = body.carrier.trim();
 
   const numericFields: Array<[string, unknown]> = [
     ["download_mbps", body.download_mbps],

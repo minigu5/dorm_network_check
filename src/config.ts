@@ -22,10 +22,17 @@ export const DEFAULT_RADIUS_M = 25;
 // AS4766/"KT Corporation" asOrganization 문자열로 노출하므로, asOrganization만으로는
 // KT 유선과 KT 모바일을 구분할 수 없다. 이는 버그가 아니라 Cloudflare가 제공하는
 // 정보의 근본적 한계이며, 스펙 §4의 VPN 한계와 마찬가지로 실용적 목적상 감수한다.
-export const MOBILE_CARRIER_ORG_KEYWORDS = [
-  "sk telecom",
-  "kt corporation",
-  "korea telecom",
-  "lg uplus",
-  "lguplus",
-];
+// (이 한계를 실측으로 만난 경우 BLOCKED_WIFI_IPS에 해당 WiFi의 공인 IP를 추가할 것.)
+export type CarrierName = "SKT" | "KT" | "LGU+";
+
+export const CARRIER_ORG_KEYWORDS: Record<CarrierName, string[]> = {
+  SKT: ["sk telecom"],
+  KT: ["kt corporation", "korea telecom"],
+  "LGU+": ["lg uplus", "lguplus"],
+};
+
+// asOrganization만으로는 KT 유선/모바일을 구분 못 하는 등 조직명 판정이 뚫리는 경우를
+// 대비한 최후 수단: 실제로 확인된 기숙사/학교 WiFi의 공인(egress) IP를 직접 차단한다.
+// (예: ip.pe.kr 같은 도구로 해당 WiFi에 연결한 기기에서 확인) 이 IP는 학교 네트워크
+// 구성이 바뀌면 함께 바뀔 수 있으니, WiFi 차단이 다시 뚫리면 재확인 후 갱신할 것.
+export const BLOCKED_WIFI_IPS = ["221.168.22.149"];

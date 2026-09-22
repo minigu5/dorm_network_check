@@ -3,10 +3,15 @@ import { env } from "cloudflare:test";
 import { handleSubmit } from "../../src/handlers/submit";
 import { exportAllMeasurements } from "../../src/lib/db";
 
-function makeRequest(body: Record<string, unknown>, cf: Record<string, unknown>, ua = "TestAgent") {
+function makeRequest(
+  body: Record<string, unknown>,
+  cf: Record<string, unknown>,
+  ua = "TestAgent",
+  extraHeaders: Record<string, string> = {}
+) {
   return new Request("https://dorm.omm.run/api/submit", {
     method: "POST",
-    headers: { "content-type": "application/json", "user-agent": ua },
+    headers: { "content-type": "application/json", "user-agent": ua, ...extraHeaders },
     body: JSON.stringify(body),
     cf,
   } as RequestInit);
@@ -14,7 +19,6 @@ function makeRequest(body: Record<string, unknown>, cf: Record<string, unknown>,
 
 const baseBody = {
   lat: 37.5, lng: 127.0, accuracy_m: 15,
-  carrier: "SKT",
   dong: "3동", floor: "5", room: "512", corridor: "A",
   download_mbps: 50, upload_mbps: 10, ping_ms: 25, jitter_ms: 3, packet_loss_pct: 0,
   raw_samples: { ping: [20, 30] },
@@ -37,10 +41,21 @@ describe("handleSubmit", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].location_tag).toBe("실내");
     expect(rows[0].dong).toBe("3동");
+    expect(rows[0].carrier).toBe("SKT");
   });
 
   it("WiFi/기타망이면 400으로 거부하고 저장하지 않는다", async () => {
     const req = makeRequest(baseBody, { asOrganization: "Some University" });
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("조직명은 모바일망이어도 차단된 WiFi IP면 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(baseBody, { asOrganization: "KT Corporation" }, "TestAgent", {
+      "CF-Connecting-IP": "221.168.22.149",
+    });
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     expect(res.status).toBe(400);
     const rows = await exportAllMeasurements(env.DB);
@@ -147,17 +162,6 @@ describe("handleSubmit", () => {
     expect(rows[0].floor).toBe("5");
     expect(rows[0].room).toBe("512");
     expect(rows[0].corridor).toBe("A");
-  });
-
-  it("carrier가 문자열이 아니면 400으로 거부하고 저장하지 않는다", async () => {
-    const req = makeRequest(
-      { ...baseBody, carrier: 123 },
-      { asOrganization: "SK Telecom" }
-    );
-    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
-    expect(res.status).toBe(400);
-    const rows = await exportAllMeasurements(env.DB);
-    expect(rows).toHaveLength(0);
   });
 
   it("note가 문자열이 아니면 400으로 거부하고 저장하지 않는다", async () => {

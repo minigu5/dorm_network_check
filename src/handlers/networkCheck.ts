@@ -1,9 +1,11 @@
-import { getCfProperties, isMobileCarrierOrg } from "../lib/network";
+import { getCfProperties, getClientIp, detectCarrier, isBlockedWifiIp } from "../lib/network";
 
 export function handleNetworkCheck(request: Request): Response {
   const { asOrganization } = getCfProperties(request);
-  const status = isMobileCarrierOrg(asOrganization) ? "mobile" : "wifi_or_other";
-  return new Response(JSON.stringify({ status }), {
+  const ip = getClientIp(request);
+  const carrier = isBlockedWifiIp(ip) ? null : detectCarrier(asOrganization);
+  const status = carrier !== null ? "mobile" : "wifi_or_other";
+  return new Response(JSON.stringify({ status, carrier }), {
     headers: { "content-type": "application/json" },
   });
 }

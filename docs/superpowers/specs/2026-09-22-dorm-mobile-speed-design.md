@@ -88,6 +88,23 @@
   모바일망을 구분할 수 없다. 이는 Cloudflare가 제공하는 정보의 근본적 한계로,
   고칠 수 없는 영구적 스펙 한계다(SK/LG 계열은 유선 브랜드명이 달라 화이트리스트
   키워드에서 애초에 제외했지만, KT는 이 방법으로도 분리되지 않는다).
+- **IP 직접 차단(위 한계의 실용적 보완)**: 실측 결과 기숙사 WiFi가 KT 유선망을
+  써서 asOrganization만으로 못 걸러지는 것이 확인됨(예: 학교 WiFi 공인 IP가
+  KT/AS4766로 잡힘). 이런 경우를 대비해 알려진 WiFi 공인(egress) IP를
+  `CF-Connecting-IP` 헤더로 직접 확인해 차단하는 목록(`BLOCKED_WIFI_IPS`)을
+  둔다. `/api/network-check`와 `/api/submit` 양쪽에서 조직명 판정과 별개로 이
+  목록을 확인하며, 이 목록에 있으면 조직명이 무엇이든 무조건 거부한다. WiFi가
+  다시 뚫리면 해당 WiFi에 연결한 기기에서 공인 IP를 확인해(예: ip.pe.kr) 이
+  목록을 갱신할 것.
+
+### 4-1. 통신사 자동 판별
+브라우저 JS에는 통신사 감지 API가 없지만, 서버가 어차피 WiFi 차단을 위해
+`asOrganization`을 확인하므로 같은 값에서 통신사(SKT/KT/LGU+)도 함께
+판별한다. 사용자가 수동으로 선택할 필요가 없다: `GET /api/network-check`가
+`{status, carrier}`를 반환하고, `POST /api/submit`도 클라이언트가 보낸 값을
+신뢰하지 않고 서버가 asOrganization으로 다시 판별해 저장한다(위치/시간대
+재검증과 같은 원칙). 알뜰폰(MVNO) 사용자도 실제로 타는 망(SKT/KT/LGU+) 기준
+으로 자동 분류된다.
 
 ## 5. 위치(실내/외부) 판정
 
@@ -122,9 +139,9 @@ else:
 
 ## 6. 데이터 수집 폼 필드 (§3 분기에 따른 구성)
 
-- 공통(모든 경우): 통신사(carrier) 드롭다운 (SKT / KT / LG U+ / 알뜰폰 / 기타),
-  위치(lat/lng/accuracy)는 Geolocation API로 자동 수집(권한 필요), 시간(created_at)
-  및 OS(User-Agent 파싱)는 자동 수집.
+- 공통(모든 경우): 통신사(carrier)는 §4-1대로 서버가 asOrganization에서 자동
+  판별(사용자 선택 없음), 위치(lat/lng/accuracy)는 Geolocation API로 자동
+  수집(권한 필요), 시간(created_at) 및 OS(User-Agent 파싱)는 자동 수집.
 - **실내 판정(3-a)**: 동(dong), 층(floor), 호실(room), 복도(corridor)를 사용자가
   직접 선택·입력(필수).
 - **외부/미확인(3-b)**: 동/층/호실/복도 입력란 없음. 대신 선택적 자유 설명
@@ -157,7 +174,7 @@ CREATE TABLE measurements (
   location_tag TEXT NOT NULL,        -- 최종 판정: 실내/외부/미확인
   dong TEXT, floor TEXT, room TEXT, corridor TEXT,  -- 실내 판정일 때만 채움
   note TEXT,                         -- 외부/미확인일 때 선택적 자유 설명
-  carrier TEXT NOT NULL,             -- SKT/KT/LGU+/알뜰/기타
+  carrier TEXT NOT NULL,             -- SKT/KT/LGU+, asOrganization에서 서버가 자동 판별(§4-1)
   network_org TEXT,                  -- Cloudflare asOrganization (감사/디버깅용)
   os TEXT,                           -- User-Agent 파싱 결과
   download_mbps REAL, upload_mbps REAL,
@@ -188,18 +205,31 @@ CREATE TABLE measurements (
 
 ## 10. 측정 알고리즘 (클라이언트 JS)
 
-- **다운로드**: `/api/download?size=N`을 크기를 늘려가며(1MB→5MB→20MB) 순차 fetch,
-  각 구간 elapsed time으로 Mbps 계산 후 마지막 2~3구간 평균 사용(초기 TCP
-  슬로우스타트 왜곡 배제).
-- **업로드**: 랜덤 Blob(5MB) 생성해 `/api/upload`로 POST, 시작~응답 도착까지
-  elapsed로 Mbps 계산.
+- **다운로드/업로드는 고정 크기가 아니라 고정 시간 동안 반복 측정한다**
+  (speedtest.net과 같은 방식). 회선 속도가 다르면 고정 크기 방식은 전체 측정
+  시간이 크게 달라지고(느린 회선에서 20MB는 매우 오래 걸림), 사용자에게 진행
+  상황도 보여줄 수 없었다. 대신:
+  - **다운로드**: 목표 시간(기본 6초) 동안 `/api/download?size=4MB`를 반복
+    fetch하되, 응답 바디를 스트림(ReadableStream)으로 읽어 실시간 수신 바이트
+    수를 누적한다. 목표 시간이 지나면 진행 중인 청크를 `reader.cancel()`로
+    중단하고(이미 받은 바이트는 그대로 집계됨), 총 바이트/총 경과시간으로
+    Mbps를 계산한다.
+  - **업로드**: 랜덤 청크(기본 2MB) 생성 후 목표 시간(기본 5초) 동안
+    `/api/upload`에 반복 POST. 브라우저 호환성상 업로드 진행률은 스트림 단위로
+    알 수 없어 청크 완료 단위로만 갱신하며, 마지막 청크는 목표 시간을 약간
+    넘길 수 있다.
+  - 진행 중 실시간으로 경과시간/남은시간(대략)/현재까지의 Mbps를 화면에 표시한다.
 - **핑/지터**: `/api/ping` 20회 반복 호출, RTT 배열 수집 → 평균 = `ping_ms`,
-  평균절대편차 = `jitter_ms`.
+  평균절대편차 = `jitter_ms`. 진행 중 "n/20" 카운트를 화면에 표시한다.
 - **패킷로스 추정**: 위 20회 중 타임아웃(3초) 또는 실패 요청 비율 = `packet_loss_pct`.
   한계: HTTP/TCP 기반이라 실제 패킷 손실이 아닌 재전송/타임아웃 비율의 근사치이며,
   UI에 "추정치"임을 명시한다.
-- 측정 완료 후 각 단계 원시 배열을 `raw_samples`(JSON)에 함께 저장해 사후 재계산이
-  가능하게 한다.
+- 측정 완료 후 핑 원시 배열과 다운로드/업로드 총 바이트·총 시간을
+  `raw_samples`(JSON)에 함께 저장해 사후 재계산이 가능하게 한다.
+- 한계: 고정 시간 방식은 회선이 빠를수록 실제 사용 데이터량이 커진다(예: 매우
+  빠른 5G에서는 짧은 시간에도 수십~수백 MB를 주고받을 수 있음). 이는
+  speedtest.net류 도구의 공통적인 트레이드오프이며, 반대로 고정 크기 방식은
+  느린 회선에서 측정 시간이 지나치게 길어지는 문제가 있어 이쪽을 택했다.
 
 ## 11. 분석 리포트 (Python)
 
