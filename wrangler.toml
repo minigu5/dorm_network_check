@@ -16,8 +16,3 @@ binding = "ASSETS"
 [vars]
 DORM_LAT = "35.844103"
 DORM_LNG = "128.625689"
-
-[env.production]
-routes = [
-  { pattern = "dorm.omm.run/*", custom_domain = true }
-]
