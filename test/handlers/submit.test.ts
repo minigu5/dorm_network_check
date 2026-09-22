@@ -140,9 +140,9 @@ describe("handleSubmit", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("실내 판정에서 room이 문자열이 아니면(예: 숫자) 400으로 거부하고 저장하지 않는다", async () => {
+  it("실내 판정에서 room이 유효하지 않고(예: 숫자) corridor도 없으면 400으로 거부하고 저장하지 않는다", async () => {
     const req = makeRequest(
-      { ...baseBody, room: 512 },
+      { ...baseBody, room: 512, corridor: undefined },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
@@ -151,15 +151,27 @@ describe("handleSubmit", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("실내 판정에서 room이 공백 문자열뿐이면 400으로 거부하고 저장하지 않는다", async () => {
+  it("실내 판정에서 room이 공백 문자열뿐이고 corridor도 없으면 400으로 거부하고 저장하지 않는다", async () => {
     const req = makeRequest(
-      { ...baseBody, room: " " },
+      { ...baseBody, room: " ", corridor: undefined },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     expect(res.status).toBe(400);
     const rows = await exportAllMeasurements(env.DB);
     expect(rows).toHaveLength(0);
+  });
+
+  it("실내 판정에서 room 없이 corridor(층)만 있어도 200으로 저장된다", async () => {
+    const req = makeRequest(
+      { ...baseBody, room: undefined, corridor: "3층" },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(200);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].room).toBeNull();
+    expect(rows[0].corridor).toBe("3층");
   });
 
   it("입소 시간대엔 GPS 오차 감안 범위(200m) 안이면 반경(40m) 밖이어도 실내로 저장된다", async () => {

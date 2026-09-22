@@ -101,19 +101,14 @@ export async function handleSubmit(
       : null;
   const locationTag = resolveLocationTag(rawLocationTag, trusted, distanceM, accuracyM);
 
-  let indoorFields: { room: string; corridor: string } | null = null;
+  let indoorFields: { room: string | null; corridor: string | null } | null = null;
   if (locationTag === "실내") {
-    const rawIndoorFields: unknown[] = [body.room, body.corridor];
-    const allValid = rawIndoorFields.every(
-      (value) => typeof value === "string" && value.trim() !== ""
-    );
-    if (!allValid) {
-      return badRequest("room/corridor are required when indoors");
+    const room = typeof body.room === "string" ? body.room.trim() : "";
+    const corridor = typeof body.corridor === "string" ? body.corridor.trim() : "";
+    if (room === "" && corridor === "") {
+      return badRequest("room or corridor is required when indoors");
     }
-    indoorFields = {
-      room: (body.room as string).trim(),
-      corridor: (body.corridor as string).trim(),
-    };
+    indoorFields = { room: room || null, corridor: corridor || null };
   }
 
   const measurement: MeasurementInput = {

@@ -20,6 +20,64 @@ const el = (id) => document.getElementById(id);
 const show = (id) => { el(id).hidden = false; };
 const hide = (id) => { el(id).hidden = true; };
 
+// 같은 브라우저에서 진행한 측정 기록을 localStorage에 누적 보관한다.
+// localStorage는 브라우저별로 격리되므로(쿠키와 동일 성격) 별도 식별자 없이
+// 이 값의 존재 자체가 "이 브라우저의 기록"이 된다. 서버에는 보내지 않는다.
+const HISTORY_KEY = "measurement_history";
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistoryEntry(entry) {
+  const history = loadHistory();
+  history.unshift(entry); // 최신 항목이 위로 오도록
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    // localStorage 사용 불가(사생활 보호 모드 등)여도 측정 자체는 계속 동작해야 한다.
+  }
+}
+
+function formatLocationLine(entry) {
+  if (entry.branch === "indoor") {
+    return entry.corridor
+      ? `실내 · 복도(${entry.corridor})`
+      : `실내 · 호실 ${entry.room ?? "-"}`;
+  }
+  return `외부${entry.note ? ` · ${entry.note}` : ""}`;
+}
+
+function renderHistoryEntry(entry) {
+  const div = document.createElement("div");
+  div.className = "history-item";
+  const time = new Date(entry.timestamp).toLocaleString("ko-KR");
+  div.innerHTML = `
+    <div class="history-time">${time} · 통신사: ${entry.carrier ?? "-"}</div>
+    <div>${formatLocationLine(entry)}</div>
+    <div>다운로드 ${entry.download_mbps.toFixed(1)} Mbps · 업로드 ${entry.upload_mbps.toFixed(1)} Mbps</div>
+    <div>핑 ${entry.ping_ms.toFixed(0)} ms · 지터 ${entry.jitter_ms.toFixed(0)} ms · 손실률 ${entry.packet_loss_pct.toFixed(1)}%</div>
+  `;
+  return div;
+}
+
+function renderResult(entry) {
+  el("result-summary").innerHTML = "";
+  el("result-summary").appendChild(renderHistoryEntry(entry));
+
+  const listEl = el("history-list");
+  listEl.innerHTML = "";
+  for (const past of loadHistory()) {
+    listEl.appendChild(renderHistoryEntry(past));
+  }
+}
+
 async function step1CheckNetwork() {
   try {
     const res = await fetch("/api/network-check");
@@ -90,11 +148,25 @@ async function step2CheckLocation() {
   );
 }
 
+function updateIndoorFieldVisibility() {
+  const isCorridor = el("input-is-corridor-yes").checked;
+  if (isCorridor) {
+    show("label-floor");
+    hide("label-room");
+  } else {
+    hide("label-floor");
+    show("label-room");
+  }
+}
+el("input-is-corridor-yes").addEventListener("change", updateIndoorFieldVisibility);
+el("input-is-corridor-no").addEventListener("change", updateIndoorFieldVisibility);
+
 function goToIndoorForm() {
   hide("step-location");
   hide("step-measuring");
   hide("step-form-outdoor");
   state.locationBranch = "indoor";
+  updateIndoorFieldVisibility();
   show("step-form-indoor");
 }
 
@@ -132,10 +204,10 @@ el("btn-outdoor-to-indoor").addEventListener("click", () => switchBranchManually
 
 function buildSummary() {
   if (state.locationBranch === "indoor") {
-    return {
-      room: el("input-room").value,
-      corridor: el("input-corridor").value,
-    };
+    const isCorridor = el("input-is-corridor-yes").checked;
+    return isCorridor
+      ? { room: "", corridor: el("input-floor").value }
+      : { room: el("input-room").value, corridor: "" };
   }
   return {
     note: el("input-note").value,
@@ -143,8 +215,9 @@ function buildSummary() {
 }
 
 function validateIndoorForm() {
-  const ids = ["input-room", "input-corridor"];
-  return ids.every((id) => el(id).value.trim() !== "");
+  const isCorridor = el("input-is-corridor-yes").checked;
+  const id = isCorridor ? "input-floor" : "input-room";
+  return el(id).value.trim() !== "";
 }
 
 function goToConfirm() {
@@ -350,11 +423,26 @@ async function submitMeasurement() {
   }
 
   if (res.ok) {
+    const entry = {
+      timestamp: Date.now(),
+      branch: state.locationBranch,
+      carrier: state.carrier,
+      room: state.form.room ?? null,
+      corridor: state.form.corridor ?? null,
+      note: state.form.note ?? null,
+      download_mbps: state.measurement.download_mbps,
+      upload_mbps: state.measurement.upload_mbps,
+      ping_ms: state.measurement.ping_ms,
+      jitter_ms: state.measurement.jitter_ms,
+      packet_loss_pct: state.measurement.packet_loss_pct,
+    };
+    saveHistoryEntry(entry);
+
     state.measurement = null;
     state.retryAction = null;
     hide("step-measuring");
     show("step-done");
-    el("result-summary").textContent = JSON.stringify(resBody, null, 2);
+    renderResult(entry);
     return;
   }
 
@@ -362,7 +450,7 @@ async function submitMeasurement() {
     ? resBody.error
     : `제출 실패 (status ${res.status})`;
 
-  if (errorMessage.includes("room/corridor are required when indoors")) {
+  if (errorMessage.includes("room or corridor is required when indoors")) {
     // GPS 확인 시점(T0)과 제출 시점(T1) 사이에 통금 경계를 넘어가 서버가
     // 실내로 재판정한 경우. 이미 측정한 값은 유지한 채 실내 폼으로 보내
     // 호실/복도만 추가로 받는다(측정은 다시 하지 않는다).
