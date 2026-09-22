@@ -126,7 +126,16 @@ else:
   텍스트(`note`, 필수 아님)만 제공. 위치는 GPS 좌표로 충분하다고 보고 강제 입력
   항목을 두지 않는다.
 
-## 7. D1 스키마
+## 7. UI 스타일
+
+- 장식 최소화. 그라데이션, 이모지, 화려한 애니메이션 넣지 않는다.
+- 커스텀 CSS 프레임워크를 직접 만들지 말고 가벼운 정형 CSS 프레임워크(예:
+  Pico.css, Water.css류의 클래스리스/경량 프레임워크) 하나를 CDN(cdnjs)으로
+  불러와 기본 스타일만 사용한다.
+- 필요한 기능(폼, 버튼, 진행 표시, 결과 요약 표/텍스트)만 구현하고 그 이상의
+  꾸미기는 하지 않는다.
+
+## 8. D1 스키마
 
 ```sql
 CREATE TABLE measurements (
@@ -148,7 +157,7 @@ CREATE TABLE measurements (
 );
 ```
 
-## 8. API 명세
+## 9. API 명세
 
 - `GET /` — 측정 페이지 서빙(정적 shell, §3 플로우를 클라이언트 JS로 진행).
 - `GET /api/network-check` — §3 1단계용. asOrganization만 판정해 `mobile` /
@@ -167,7 +176,7 @@ CREATE TABLE measurements (
 - `GET /api/export?key=...` — 전체 데이터 CSV/JSON 반환(분석용, 비밀 쿼리 파라미터로
   보호).
 
-## 9. 측정 알고리즘 (클라이언트 JS)
+## 10. 측정 알고리즘 (클라이언트 JS)
 
 - **다운로드**: `/api/download?size=N`을 크기를 늘려가며(1MB→5MB→20MB) 순차 fetch,
   각 구간 elapsed time으로 Mbps 계산 후 마지막 2~3구간 평균 사용(초기 TCP
@@ -182,7 +191,7 @@ CREATE TABLE measurements (
 - 측정 완료 후 각 단계 원시 배열을 `raw_samples`(JSON)에 함께 저장해 사후 재계산이
   가능하게 한다.
 
-## 10. 분석 리포트 (Python)
+## 11. 분석 리포트 (Python)
 
 - `analysis/export.py`: `/api/export`를 호출해 로컬 CSV/JSON으로 저장.
 - `analysis/analyze.py`: pandas로 데이터 적재, plotly로 다음을 포함한 인터랙티브
@@ -193,9 +202,13 @@ CREATE TABLE measurements (
   - 실내 vs 외부 비교
 - 실시간 대시보드는 범위 밖(필요할 때 수동 실행하는 정적 리포트로 충분).
 
-## 11. 배포
+## 12. 배포
 
 - Cloudflare Workers + D1, `wrangler`로 배포.
+- GitHub 저장소: `https://github.com/minigu5/dorm_network_check` (기존 커밋 없음,
+  로컬 repo를 그대로 push).
+- 커스텀 도메인: `dorm.omm.run` (사용자 소유 도메인, Cloudflare Workers Custom
+  Domains로 연결. `wrangler.toml`에 route 설정).
 - 배포 전 설정 필요한 값(코드 내 상수 또는 wrangler 환경변수):
   - 기숙사 건물 중심 좌표(위도/경도)
   - geofence 반경(입소 시간대: 40m)
@@ -203,7 +216,7 @@ CREATE TABLE measurements (
   - SKT/KT/LGU+ 모바일 ASN 화이트리스트(배포 전 실측으로 검증 필요 — 실제
     `asOrganization` 값이 예상과 다를 수 있으므로 초기 배포 후 로그로 확인해 조정)
 
-## 12. 테스트 계획
+## 13. 테스트 계획
 
 - 배포 직후 본인 기기(Android/iPhone 각 1대)로 다음 케이스를 직접 실행해 확인:
   - WiFi 연결 상태로 접속 → 1단계에서 바로 차단되는지.
@@ -214,7 +227,7 @@ CREATE TABLE measurements (
   - 위치 권한 거부 → 3-b로 진행하고 `location_tag=미확인`으로 저장되는지.
 - 그 후 기숙사 친구들에게 링크 공유.
 
-## 13. 범위 밖(Out of scope)
+## 14. 범위 밖(Out of scope)
 
 - 실시간 웹 대시보드(정적 리포트로 대체).
 - 패킷 단위의 정확한 손실률 측정(HTTP 기반 한계로 근사치만 제공).
