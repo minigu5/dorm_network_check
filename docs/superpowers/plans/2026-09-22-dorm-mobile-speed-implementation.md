@@ -285,7 +285,7 @@ git commit -m "chore: scaffold Cloudflare Worker project with D1 and vitest"
 - Test: `test/lib/geo.test.ts`
 
 **Interfaces:**
-- Produces: `haversineDistanceMeters(lat1, lng1, lat2, lng2): number`, `isWithinGeofence(lat, lng, centerLat, centerLng, radiusM): boolean`. Task 12(submit 핸들러)에서 사용.
+- Produces: `haversineDistanceMeters(lat1, lng1, lat2, lng2): number`, `isWithinGeofence(lat, lng, centerLat, centerLng, radiusM): boolean`. Task 9(위치 브랜치 힌트), Task 13(submit 핸들러)에서 사용.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -386,7 +386,7 @@ git commit -m "feat: add haversine distance and geofence check"
 
 **Interfaces:**
 - Consumes: 없음(순수 함수, `Date` 입력).
-- Produces: `CURFEW_WINDOWS`, `CURFEW_RADIUS_M`, `DEFAULT_RADIUS_M`, `MOBILE_CARRIER_ORG_KEYWORDS` (`src/config.ts`). `isCurfewWindow(date: Date): boolean`, `type RawLocationTag = "실내" | "외부" | "미확인"`, `resolveLocationTag(raw: RawLocationTag, isCurfew: boolean): RawLocationTag` (`src/lib/curfew.ts`). Task 12에서 사용.
+- Produces: `CURFEW_WINDOWS`, `CURFEW_RADIUS_M`, `DEFAULT_RADIUS_M`, `MOBILE_CARRIER_ORG_KEYWORDS` (`src/config.ts`). `isCurfewWindow(date: Date): boolean`, `type RawLocationTag = "실내" | "외부" | "미확인"`, `resolveLocationTag(raw: RawLocationTag, isCurfew: boolean): RawLocationTag` (`src/lib/curfew.ts`). Task 9, 13에서 사용.
 
 - [ ] **Step 1: 설정 파일 작성**
 
@@ -521,7 +521,7 @@ git commit -m "feat: add curfew window and final location tag resolution logic"
 
 **Interfaces:**
 - Consumes: `MOBILE_CARRIER_ORG_KEYWORDS` (`src/config.ts`, Task 3에서 생성).
-- Produces: `getCfProperties(request: Request): { asn: number | null; asOrganization: string | null }`, `isMobileCarrierOrg(asOrganization: string | null): boolean`. Task 8, 12에서 사용.
+- Produces: `getCfProperties(request: Request): { asn: number | null; asOrganization: string | null }`, `isMobileCarrierOrg(asOrganization: string | null): boolean`. Task 8, 13에서 사용.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -620,7 +620,7 @@ git commit -m "feat: add WiFi/mobile carrier detection via Cloudflare cf propert
 - Test: `test/lib/userAgent.test.ts`
 
 **Interfaces:**
-- Produces: `parseOS(userAgent: string | null): "iOS" | "Android" | "Other"`. Task 12에서 사용.
+- Produces: `parseOS(userAgent: string | null): "iOS" | "Android" | "Other"`. Task 13에서 사용.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -686,7 +686,7 @@ git commit -m "feat: add User-Agent OS parsing"
 - Test: `test/lib/stats.test.ts`
 
 **Interfaces:**
-- Produces: `computeThroughputMbps(bytes: number, elapsedMs: number): number`, `computePingStats(samples: Array<number | null>): { ping_ms: number; jitter_ms: number; packet_loss_pct: number }` (`src/lib/stats.ts`, TypeScript/Node 테스트용, Task 12 export 검증에서 참고). `public/stats-client.js`는 브라우저에서 그대로 `<script>`로 로드하는 동일 로직의 순수 JS 버전(빌드 없음), Task 15에서 `app.js`가 사용.
+- Produces: `computeThroughputMbps(bytes: number, elapsedMs: number): number`, `computePingStats(samples: Array<number | null>): { ping_ms: number; jitter_ms: number; packet_loss_pct: number }` (`src/lib/stats.ts`, TypeScript/Node 테스트용, Task 13 제출 값 형태 참고용). `public/stats-client.js`는 브라우저에서 그대로 `<script>`로 로드하는 동일 로직의 순수 JS 버전(빌드 없음), Task 15에서 `app.js`가 사용.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -812,7 +812,7 @@ git commit -m "feat: add throughput and ping statistics calculation"
 
 **Interfaces:**
 - Consumes: `Env`(Task 1), migration `0001_create_measurements.sql`(Task 1).
-- Produces: `interface MeasurementInput`, `insertMeasurement(db: D1Database, m: MeasurementInput): Promise<void>`, `exportAllMeasurements(db: D1Database): Promise<Record<string, unknown>[]>`. Task 12, 13에서 사용.
+- Produces: `interface MeasurementInput`, `insertMeasurement(db: D1Database, m: MeasurementInput): Promise<void>`, `exportAllMeasurements(db: D1Database): Promise<Record<string, unknown>[]>`. Task 13, 14에서 사용.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1046,7 +1046,134 @@ git commit -m "feat: add GET /api/network-check endpoint"
 
 ---
 
-### Task 9: `GET /api/download` 핸들러
+### Task 9: `GET /api/location-check` 핸들러 (UX 위치 브랜치 힌트)
+
+**목적:** §3 2단계에서 클라이언트가 GPS 좌표를 얻은 직후, 실내(3-a)/외부(3-b) 입력
+화면 중 어느 쪽을 보여줄지 결정하기 위한 힌트를 서버에 물어본다. `POST /api/submit`
+과 동일한 geofence+시간대 로직을 재사용하지만(로직을 JS로 또 복제하지 않음),
+저장은 하지 않는 조회 전용 엔드포인트다. **주의:** 이 응답은 UX 힌트일 뿐이며,
+`POST /api/submit`(§3 6단계, Task 13에서 구현)이 항상 다시 계산해 최종 저장한다 —
+이 엔드포인트가 없어도(또는 이 엔드포인트를 만들기 전에 제출이 먼저 들어와도)
+데이터 정합성에는 영향 없음.
+
+**Files:**
+- Create: `src/handlers/locationCheck.ts`
+- Modify: `src/index.ts`
+- Test: `test/handlers/locationCheck.test.ts`
+
+**Interfaces:**
+- Consumes: `isWithinGeofence`(Task 2), `isCurfewWindow`, `resolveLocationTag`,
+  `RawLocationTag`(Task 3), `CURFEW_RADIUS_M`, `DEFAULT_RADIUS_M`(Task 3의
+  `src/config.ts`), `Env`(Task 1).
+- Produces: `handleLocationCheck(request: Request, env: Env, now?: Date): Response`
+  — JSON `{ tag: "실내" | "외부" | "미확인" }`. Task 15(프론트엔드)에서 사용.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`test/handlers/locationCheck.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { env } from "cloudflare:test";
+import { handleLocationCheck } from "../../src/handlers/locationCheck";
+
+const testEnv = { ...env, DORM_LAT: "37.5", DORM_LNG: "127.0" };
+
+describe("handleLocationCheck", () => {
+  it("입소 시간대 + 반경 안 좌표면 실내", () => {
+    const req = new Request("https://example.com/api/location-check?lat=37.5001&lng=127.0");
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "실내" }));
+  });
+
+  it("반경 밖 좌표면 외부", () => {
+    const req = new Request("https://example.com/api/location-check?lat=37.6&lng=127.0");
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "외부" }));
+  });
+
+  it("입소 시간대 밖이면 반경 안이어도 외부", () => {
+    const req = new Request("https://example.com/api/location-check?lat=37.5001&lng=127.0");
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T05:00:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "외부" }));
+  });
+
+  it("좌표가 없으면 미확인", () => {
+    const req = new Request("https://example.com/api/location-check");
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "미확인" }));
+  });
+});
+```
+
+- [ ] **Step 2: 테스트 실패 확인**
+
+Run: `npm test -- locationCheck.test.ts`
+Expected: FAIL with "Cannot find module '../../src/handlers/locationCheck'"
+
+- [ ] **Step 3: 구현**
+
+`src/handlers/locationCheck.ts`:
+```ts
+import type { Env } from "../env";
+import { isWithinGeofence } from "../lib/geo";
+import { isCurfewWindow, resolveLocationTag, type RawLocationTag } from "../lib/curfew";
+import { CURFEW_RADIUS_M, DEFAULT_RADIUS_M } from "../config";
+
+export function handleLocationCheck(
+  request: Request,
+  env: Env,
+  now: Date = new Date()
+): Response {
+  const url = new URL(request.url);
+  const latParam = url.searchParams.get("lat");
+  const lngParam = url.searchParams.get("lng");
+
+  let tag: RawLocationTag;
+  if (latParam === null || lngParam === null) {
+    tag = "미확인";
+  } else {
+    const lat = Number(latParam);
+    const lng = Number(lngParam);
+    const dormLat = Number(env.DORM_LAT);
+    const dormLng = Number(env.DORM_LNG);
+    const curfew = isCurfewWindow(now);
+    const radius = curfew ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
+    const raw: RawLocationTag = isWithinGeofence(lat, lng, dormLat, dormLng, radius)
+      ? "실내"
+      : "외부";
+    tag = resolveLocationTag(raw, curfew);
+  }
+
+  return new Response(JSON.stringify({ tag }), {
+    headers: { "content-type": "application/json" },
+  });
+}
+```
+
+`src/index.ts`에 라우트 추가:
+```ts
+import { handleLocationCheck } from "./handlers/locationCheck";
+// ...
+if (url.pathname === "/api/location-check") {
+  return handleLocationCheck(request, env);
+}
+```
+
+- [ ] **Step 4: 테스트 통과 확인**
+
+Run: `npm test -- locationCheck.test.ts`
+Expected: PASS (4 tests)
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add src/handlers/locationCheck.ts src/index.ts test/handlers/locationCheck.test.ts
+git commit -m "feat: add GET /api/location-check endpoint for client-side branch hint"
+```
+
+---
+
+### Task 10: `GET /api/download` 핸들러
 
 **Files:**
 - Create: `src/handlers/download.ts`
@@ -1145,7 +1272,7 @@ git commit -m "feat: add GET /api/download endpoint for download speed test"
 
 ---
 
-### Task 10: `POST /api/upload` 핸들러
+### Task 11: `POST /api/upload` 핸들러
 
 **Files:**
 - Create: `src/handlers/upload.ts`
@@ -1216,7 +1343,7 @@ git commit -m "feat: add POST /api/upload endpoint for upload speed test"
 
 ---
 
-### Task 11: `GET /api/ping` 핸들러
+### Task 12: `GET /api/ping` 핸들러
 
 **Files:**
 - Create: `src/handlers/ping.ts`
@@ -1278,7 +1405,7 @@ git commit -m "feat: add GET /api/ping endpoint for RTT measurement"
 
 ---
 
-### Task 12: `POST /api/submit` 핸들러 (핵심 검증 로직)
+### Task 13: `POST /api/submit` 핸들러 (핵심 검증 로직)
 
 **Files:**
 - Create: `src/handlers/submit.ts`
@@ -1535,7 +1662,7 @@ git commit -m "feat: add POST /api/submit with WiFi and location/curfew validati
 
 ---
 
-### Task 13: `GET /api/export` 핸들러
+### Task 14: `GET /api/export` 핸들러
 
 **Files:**
 - Create: `src/handlers/export.ts`
@@ -1647,7 +1774,7 @@ Expected: PASS (2 tests)
 - [ ] **Step 5: 전체 테스트 스위트 실행**
 
 Run: `npm test`
-Expected: PASS (모든 테스트, Task 1~13 합산)
+Expected: PASS (모든 테스트, Task 1~14 합산)
 
 - [ ] **Step 6: 커밋**
 
@@ -1658,14 +1785,14 @@ git commit -m "feat: add GET /api/export endpoint with secret-key auth"
 
 ---
 
-### Task 14: 프론트엔드 — 측정 페이지 (§3 플로우 전체)
+### Task 15: 프론트엔드 — 측정 페이지 (§3 플로우 전체)
 
 **Files:**
 - Modify: `public/index.html`
 - Create: `public/app.js`
 
 **Interfaces:**
-- Consumes: `computeThroughputMbps`, `computePingStats` (`public/stats-client.js`, Task 6), API 엔드포인트 `/api/network-check`, `/api/download`, `/api/upload`, `/api/ping`, `/api/submit` (Task 8~12).
+- Consumes: `computeThroughputMbps`, `computePingStats` (`public/stats-client.js`, Task 6), API 엔드포인트 `/api/network-check`, `/api/location-check`, `/api/download`, `/api/upload`, `/api/ping`, `/api/submit` (Task 8~13).
 
 이 태스크는 브라우저 UI라 자동 테스트 대신 수동 체크리스트로 검증한다(스펙 §13과 동일).
 
@@ -1797,15 +1924,22 @@ async function step2CheckLocation() {
   }
 
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
+    async (pos) => {
       state.lat = pos.coords.latitude;
       state.lng = pos.coords.longitude;
       state.accuracy = pos.coords.accuracy;
-      // 실내/외부 최종 판정은 서버가 하지만, UI 분기를 위해 서버에 위치만 먼저 물어보는 대신
-      // 사용자 경험상 "실내로 추정" 여부는 제출 시 서버 응답으로 확정한다.
-      // 여기서는 좌표를 얻었다는 사실만으로 실내 입력 폼을 우선 보여주고,
-      // 최종 확인 화면에서 서버 판정 결과를 안내하지 않고 사용자가 입력한 대로 진행한다.
-      goToIndoorForm();
+      // 최종 판정은 항상 /api/submit 시점에 서버가 다시 계산하지만(§3 6단계),
+      // 여기서는 어떤 입력 폼(3-a/3-b)을 보여줄지 결정하기 위해
+      // 같은 geofence+시간대 로직을 쓰는 /api/location-check에 힌트를 물어본다.
+      const res = await fetch(
+        `/api/location-check?lat=${state.lat}&lng=${state.lng}`
+      );
+      const { tag } = await res.json();
+      if (tag === "실내") {
+        goToIndoorForm();
+      } else {
+        goToOutdoorForm();
+      }
     },
     () => {
       goToOutdoorForm();
@@ -1955,7 +2089,11 @@ npm run dev
 브라우저(또는 휴대폰이 개발 서버에 접근 가능하도록 `wrangler dev --ip 0.0.0.0` 사용)로 아래 항목을 스펙 §13 기준대로 확인한다:
 
 - WiFi로 접속 시 1단계에서 "모바일 데이터로 연결..." 안내가 뜨고 이후 진행되지 않는다.
-- 모바일 데이터로 접속 시 위치 권한 요청이 뜨고, 허용 시 실내 입력 폼(3-a)이 뜬다.
+- 모바일 데이터 + 입소 시간대 + 기숙사 반경 안에서 접속 시 위치 권한 허용하면
+  `/api/location-check` 응답이 `실내`로 오고 3-a 폼이 뜬다.
+- 기숙사 밖(또는 입소 시간대 밖)에서 위치 권한을 허용해도 `/api/location-check`
+  응답이 `외부`로 오고 3-b 폼이 뜬다(단순히 권한 허용 여부가 아니라 실제 위치/시간대
+  판정에 따라 분기되는지 확인).
 - 위치 권한을 거부하면 외부 입력 폼(3-b)이 뜬다.
 - 최종 확인 화면에서 입력한 값이 정확히 보이고, "이 정보로 측정 시작"을 누르기 전에는 `/api/submit` 요청이 나가지 않는다(개발자 도구 네트워크 탭으로 확인).
 - 측정 완료 후 결과 요약이 표시된다.
@@ -1971,7 +2109,7 @@ git commit -m "feat: implement measurement page flow (network check, location br
 
 ---
 
-### Task 15: Python 분석 스크립트
+### Task 16: Python 분석 스크립트
 
 **Files:**
 - Create: `analysis/requirements.txt`
@@ -2145,7 +2283,7 @@ git commit -m "feat: add Python export/analyze scripts producing plotly HTML rep
 
 ---
 
-### Task 16: README 및 배포 문서화
+### Task 17: README 및 배포 문서화
 
 **Files:**
 - Create: `README.md`
@@ -2212,9 +2350,9 @@ git push origin main
 
 ## Self-Review 결과
 
-- **스펙 커버리지:** §3(사용자 플로우) → Task 14, §4(WiFi 차단) → Task 4/8/12, §5(위치 판정) → Task 2/3/12, §6(폼 필드 분기) → Task 12/14, §7(UI 스타일) → Task 14(Pico.css류 클래스리스 프레임워크, 장식 없음), §8(D1 스키마) → Task 1/7, §9(API) → Task 8~13, §10(측정 알고리즘) → Task 6/9/10/11/14, §11(분석 리포트) → Task 15, §12(배포) → Task 1/16, §13(테스트 계획) → Task 14 Step 3. 모두 매핑됨.
-- **플레이스홀더 스캔:** `REPLACE_WITH_D1_DATABASE_ID`, `DORM_LAT/DORM_LNG` 초기값 `"0"`, `MOBILE_CARRIER_ORG_KEYWORDS` 시드 목록은 스펙 §12/§4에서 이미 "배포 후 실측으로 검증 필요"라고 명시한 항목이라 남겨둠(코드는 실제로 동작하는 값이고, 실측 후 교정하라는 안내가 README/주석에 명시돼 있음). 그 외 TBD/TODO 없음.
-- **타입 일관성:** `RawLocationTag`("실내"/"외부"/"미확인")가 `curfew.ts`, `submit.ts`, `db.ts` 전체에서 동일 문자열로 사용됨. `MeasurementInput` 필드명이 `db.ts` 정의와 `submit.ts` 사용처에서 일치. `computeThroughputMbps`/`computePingStats` 시그니처가 `stats.ts`(Task 6), `submit.test.ts`에서 참고하는 값 형태, `app.js`(Task 14)의 `stats-client.js` 호출부까지 일치.
+- **스펙 커버리지:** §3(사용자 플로우) → Task 15, Task 9(위치 브랜치 힌트), §4(WiFi 차단) → Task 4/8/13, §5(위치 판정) → Task 2/3/9/13, §6(폼 필드 분기) → Task 13/15, §7(UI 스타일) → Task 15(Pico.css류 클래스리스 프레임워크, 장식 없음, 모바일 최적화), §8(D1 스키마) → Task 1/7, §9(API) → Task 8~14, §10(측정 알고리즘) → Task 6/10/11/12/15, §11(분석 리포트) → Task 16, §12(배포) → Task 1/17, §13(테스트 계획) → Task 15 Step 3. 모두 매핑됨.
+- **플레이스홀더 스캔:** `REPLACE_WITH_D1_DATABASE_ID`(사용자별 D1 인스턴스 ID라 배포 시점에만 알 수 있음), `MOBILE_CARRIER_ORG_KEYWORDS` 시드 목록(스펙 §12/§4에서 "배포 후 실측으로 검증 필요"라고 명시한 항목)만 남겨둠. `DORM_LAT`/`DORM_LNG`는 실제 기숙사 좌표(35.844103, 128.625689)로 이미 채워져 있어 플레이스홀더가 아님. 그 외 TBD/TODO 없음.
+- **타입 일관성:** `RawLocationTag`("실내"/"외부"/"미확인")가 `curfew.ts`, `submit.ts`, `db.ts` 전체에서 동일 문자열로 사용됨. `MeasurementInput` 필드명이 `db.ts` 정의와 `submit.ts` 사용처에서 일치. `computeThroughputMbps`/`computePingStats` 시그니처가 `stats.ts`(Task 6), `submit.test.ts`에서 참고하는 값 형태, `app.js`(Task 15)의 `stats-client.js` 호출부까지 일치. `RawLocationTag`/`resolveLocationTag`가 `handlers/locationCheck.ts`(Task 9)와 `handlers/submit.ts`(Task 13) 양쪽에서 동일하게 재사용됨(로직 중복 없음).
 
 ## Execution Handoff
 
