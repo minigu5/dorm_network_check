@@ -1,0 +1,22 @@
+name = "dorm-network-check"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dorm_network_check"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[vars]
+DORM_LAT = "35.844103"
+DORM_LNG = "128.625689"
+
+[[routes]]
+pattern = "dorm.omm.run/*"
+custom_domain = true
