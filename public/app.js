@@ -172,6 +172,7 @@ function selectIndoorType(type) {
     show("label-room");
   }
   hide("indoor-validation-error");
+  show("btn-indoor-next");
 }
 el("btn-select-room").addEventListener("click", () => selectIndoorType("room"));
 el("btn-select-corridor").addEventListener("click", () => selectIndoorType("corridor"));
@@ -182,6 +183,7 @@ function resetIndoorSelection() {
   el("btn-select-corridor").classList.remove("selected");
   hide("label-floor");
   hide("label-room");
+  hide("btn-indoor-next");
 }
 
 // 실내/외부 폼 양쪽에서 내 GPS와 기숙사 기준 좌표를 2줄로 나란히 보여준다.
