@@ -356,19 +356,36 @@ async function measureDownload(durationMs, onProgress) {
   return { mbps: computeThroughputMbps(totalBytes, elapsedMs), totalBytes, elapsedMs };
 }
 
+// 업로드는 다운로드보다 더 느린 경우가 많아(기숙사 WiFi 상행 대역폭 제약),
+// 마지막 청크 전송이 duration 경계를 크게 넘기면 "마무리 중"에 오래 멈춘
+// 것처럼 보인다. 다운로드와 동일하게 유예시간(grace)을 두고 강제 종료한다.
+const UPLOAD_CHUNK_GRACE_MS = 1500;
+
 async function measureUpload(durationMs, onProgress) {
   const chunk = makeRandomChunk(UPLOAD_CHUNK_BYTES);
   const startTime = performance.now();
   let totalBytes = 0;
 
   // 업로드는 fetch만으로는 전송 도중 진행률을 알 수 없어(브라우저 호환성 문제),
-  // 청크 단위로만 진행률을 갱신한다. 마지막 청크가 끝날 때까지는 목표 시간을
-  // 살짝 넘길 수 있다(다운로드처럼 중간에 끊지 않음).
+  // 청크 단위로만 진행률을 갱신한다.
   while (performance.now() - startTime < durationMs) {
-    await fetch("/api/upload", { method: "POST", body: chunk });
-    totalBytes += chunk.byteLength;
-    const elapsedMs = performance.now() - startTime;
-    onProgress({ elapsedMs, totalMs: durationMs, mbps: computeThroughputMbps(totalBytes, elapsedMs) });
+    const controller = new AbortController();
+    const remainingMs = durationMs - (performance.now() - startTime);
+    const timeoutId = setTimeout(() => controller.abort(), remainingMs + UPLOAD_CHUNK_GRACE_MS);
+
+    try {
+      await fetch("/api/upload", { method: "POST", body: chunk, signal: controller.signal });
+      totalBytes += chunk.byteLength;
+      const elapsedMs = performance.now() - startTime;
+      onProgress({ elapsedMs, totalMs: durationMs, mbps: computeThroughputMbps(totalBytes, elapsedMs) });
+    } catch (err) {
+      // 유예시간 초과로 강제 중단된 경우: 이 청크는 집계하지 않고 측정을
+      // 마친다. 그 외 오류는 그대로 올려서 재시도 버튼이 뜨게 한다.
+      if (err.name === "AbortError") break;
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   const elapsedMs = performance.now() - startTime;
