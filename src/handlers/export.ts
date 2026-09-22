@@ -25,6 +25,7 @@ const HEADERS = [
   "jitter_ms",
   "packet_loss_pct",
   "raw_samples",
+  "manual_override",
 ];
 
 function toCsv(rows: Record<string, unknown>[]): string {

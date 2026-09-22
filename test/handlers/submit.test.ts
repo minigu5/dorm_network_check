@@ -19,7 +19,7 @@ function makeRequest(
 
 const baseBody = {
   lat: 37.5, lng: 127.0, accuracy_m: 15,
-  dong: "3동", floor: "5", room: "512", corridor: "A",
+  room: "512", corridor: "A",
   download_mbps: 50, upload_mbps: 10, ping_ms: 25, jitter_ms: 3, packet_loss_pct: 0,
   raw_samples: { ping: [20, 30] },
 };
@@ -40,8 +40,9 @@ describe("handleSubmit", () => {
     const rows = await exportAllMeasurements(env.DB);
     expect(rows).toHaveLength(1);
     expect(rows[0].location_tag).toBe("실내");
-    expect(rows[0].dong).toBe("3동");
+    expect(rows[0].room).toBe("512");
     expect(rows[0].carrier).toBe("SKT");
+    expect(rows[0].manual_override).toBe(0);
   });
 
   it("WiFi/기타망이면 400으로 거부하고 저장하지 않는다", async () => {
@@ -64,7 +65,7 @@ describe("handleSubmit", () => {
 
   it("입소 시간대 밖이면 GPS가 실내여도 외부로 강제 저장한다", async () => {
     const req = makeRequest(
-      { ...baseBody, dong: undefined, floor: undefined, room: undefined, corridor: undefined, note: "복도 앞" },
+      { ...baseBody, room: undefined, corridor: undefined, note: "복도 앞" },
       { asOrganization: "SK Telecom" }
     );
     // 2026-09-22T14:00:00+09:00 = 05:00Z, 입소 시간대 아님
@@ -75,18 +76,29 @@ describe("handleSubmit", () => {
     expect(rows[0].note).toBe("복도 앞");
   });
 
-  it("실내로 판정됐는데 dong/floor/room/corridor가 없으면 400", async () => {
+  it("실내로 판정됐는데 room/corridor가 없으면 400", async () => {
     const req = makeRequest(
-      { ...baseBody, dong: undefined, floor: undefined, room: undefined, corridor: undefined },
+      { ...baseBody, room: undefined, corridor: undefined },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     expect(res.status).toBe(400);
   });
 
+  it("실내로 판정되고 동/층 정보 없이 호실/복도만 있어도 200으로 저장된다", async () => {
+    const req = makeRequest(baseBody, { asOrganization: "SK Telecom" });
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(200);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].dong).toBeNull();
+    expect(rows[0].floor).toBeNull();
+    expect(rows[0].room).toBe("512");
+    expect(rows[0].corridor).toBe("A");
+  });
+
   it("위치 좌표가 없으면 미확인으로 저장된다", async () => {
     const req = makeRequest(
-      { ...baseBody, lat: null, lng: null, accuracy_m: null, dong: undefined, floor: undefined, room: undefined, corridor: undefined, note: "위치 권한 거부" },
+      { ...baseBody, lat: null, lng: null, accuracy_m: null, room: undefined, corridor: undefined, note: "위치 권한 거부" },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
@@ -97,7 +109,7 @@ describe("handleSubmit", () => {
 
   it("좌표가 숫자가 아니면(예: 문자열) 미확인으로 저장된다", async () => {
     const req = makeRequest(
-      { ...baseBody, lat: "abc", lng: 127.0, dong: undefined, floor: undefined, room: undefined, corridor: undefined, note: "잘못된 좌표" },
+      { ...baseBody, lat: "abc", lng: 127.0, room: undefined, corridor: undefined, note: "잘못된 좌표" },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
@@ -128,9 +140,9 @@ describe("handleSubmit", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("실내 판정에서 dong이 문자열이 아니면(예: 숫자) 400으로 거부하고 저장하지 않는다", async () => {
+  it("실내 판정에서 room이 문자열이 아니면(예: 숫자) 400으로 거부하고 저장하지 않는다", async () => {
     const req = makeRequest(
-      { ...baseBody, dong: 5 },
+      { ...baseBody, room: 512 },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
@@ -139,9 +151,9 @@ describe("handleSubmit", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("실내 판정에서 dong이 공백 문자열뿐이면 400으로 거부하고 저장하지 않는다", async () => {
+  it("실내 판정에서 room이 공백 문자열뿐이면 400으로 거부하고 저장하지 않는다", async () => {
     const req = makeRequest(
-      { ...baseBody, dong: " " },
+      { ...baseBody, room: " " },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
@@ -164,14 +176,12 @@ describe("handleSubmit", () => {
 
   it("실내 필드 앞뒤 공백은 trim되어 저장된다", async () => {
     const req = makeRequest(
-      { ...baseBody, dong: "  3동  ", floor: " 5 ", room: " 512 ", corridor: " A " },
+      { ...baseBody, room: " 512 ", corridor: " A " },
       { asOrganization: "SK Telecom" }
     );
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     expect(res.status).toBe(200);
     const rows = await exportAllMeasurements(env.DB);
-    expect(rows[0].dong).toBe("3동");
-    expect(rows[0].floor).toBe("5");
     expect(rows[0].room).toBe("512");
     expect(rows[0].corridor).toBe("A");
   });
@@ -180,7 +190,7 @@ describe("handleSubmit", () => {
     const req = makeRequest(
       {
         ...baseBody,
-        dong: undefined, floor: undefined, room: undefined, corridor: undefined,
+        room: undefined, corridor: undefined,
         note: { text: "복도 앞" },
       },
       { asOrganization: "SK Telecom" }
@@ -189,5 +199,16 @@ describe("handleSubmit", () => {
     expect(res.status).toBe(400);
     const rows = await exportAllMeasurements(env.DB);
     expect(rows).toHaveLength(0);
+  });
+
+  it("manual_override:true를 보내면 실내/외부 판정과 무관하게 DB에 1로 저장된다", async () => {
+    const req = makeRequest(
+      { ...baseBody, manual_override: true },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(200);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].manual_override).toBe(1);
   });
 });

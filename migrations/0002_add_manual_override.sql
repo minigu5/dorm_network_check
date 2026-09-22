@@ -1,0 +1,1 @@
+ALTER TABLE measurements ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0;

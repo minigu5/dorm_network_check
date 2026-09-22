@@ -10,11 +10,10 @@ interface SubmitBody {
   lat: number | null;
   lng: number | null;
   accuracy_m: number | null;
-  dong?: string;
-  floor?: string;
   room?: string;
   corridor?: string;
   note?: string;
+  manual_override?: boolean;
   download_mbps: number;
   upload_mbps: number;
   ping_ms: number;
@@ -102,18 +101,16 @@ export async function handleSubmit(
       : null;
   const locationTag = resolveLocationTag(rawLocationTag, trusted, distanceM, accuracyM);
 
-  let indoorFields: { dong: string; floor: string; room: string; corridor: string } | null = null;
+  let indoorFields: { room: string; corridor: string } | null = null;
   if (locationTag === "실내") {
-    const rawIndoorFields: unknown[] = [body.dong, body.floor, body.room, body.corridor];
+    const rawIndoorFields: unknown[] = [body.room, body.corridor];
     const allValid = rawIndoorFields.every(
       (value) => typeof value === "string" && value.trim() !== ""
     );
     if (!allValid) {
-      return badRequest("dong/floor/room/corridor are required when indoors");
+      return badRequest("room/corridor are required when indoors");
     }
     indoorFields = {
-      dong: (body.dong as string).trim(),
-      floor: (body.floor as string).trim(),
       room: (body.room as string).trim(),
       corridor: (body.corridor as string).trim(),
     };
@@ -127,8 +124,8 @@ export async function handleSubmit(
     raw_location_tag: rawLocationTag,
     is_curfew_window: trusted ? 1 : 0,
     location_tag: locationTag,
-    dong: indoorFields?.dong ?? null,
-    floor: indoorFields?.floor ?? null,
+    dong: null,
+    floor: null,
     room: indoorFields?.room ?? null,
     corridor: indoorFields?.corridor ?? null,
     note: locationTag === "실내" ? null : note,
@@ -141,6 +138,7 @@ export async function handleSubmit(
     jitter_ms: body.jitter_ms,
     packet_loss_pct: body.packet_loss_pct,
     raw_samples: JSON.stringify(body.raw_samples ?? null),
+    manual_override: body.manual_override === true ? 1 : 0,
   };
 
   await insertMeasurement(env.DB, measurement);

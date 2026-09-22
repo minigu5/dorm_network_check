@@ -17,6 +17,7 @@ function sampleInput(overrides: Partial<MeasurementInput> = {}): MeasurementInpu
     download_mbps: 55.2, upload_mbps: 12.1,
     ping_ms: 28.5, jitter_ms: 4.2, packet_loss_pct: 0,
     raw_samples: JSON.stringify({ ping: [20, 30] }),
+    manual_override: 0,
     ...overrides,
   };
 }
@@ -46,5 +47,11 @@ describe("insertMeasurement / exportAllMeasurements", () => {
     const rows = await exportAllMeasurements(env.DB);
     expect(rows[0].note).toBe("정문 앞");
     expect(rows[0].dong).toBeNull();
+  });
+
+  it("manual_override 플래그가 저장된다", async () => {
+    await insertMeasurement(env.DB, sampleInput({ manual_override: 1 }));
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].manual_override).toBe(1);
   });
 });

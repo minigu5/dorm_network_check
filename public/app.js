@@ -10,6 +10,7 @@ const state = {
   carrier: null, // 서버가 자동 감지한 통신사(SKT/KT/LGU+), 사용자가 직접 선택하지 않음
   lat: null, lng: null, accuracy: null,
   locationBranch: null, // "indoor" | "outdoor"
+  manualOverride: false, // 사용자가 경고를 보고 직접 실내/외부 폼을 뒤집었는지
   form: {},
   measurement: null, // set once measureDownload/measureUpload/measurePing succeed
   retryAction: null, // "measure" | "submit" -- what btn-measuring-retry should do
@@ -105,11 +106,31 @@ function goToOutdoorForm() {
   show("step-form-outdoor");
 }
 
+// GPS/geofence 자동 판정이 틀렸을 때 사용자가 직접 폼을 뒤집을 수 있게 한다.
+// 서버가 제출 시점에 GPS로 최종 판정을 독립적으로 다시 계산하므로(§3 6단계),
+// 이 전환은 어떤 입력 폼을 보여줄지만 바꾸고 실제 실내/외부 기록에는 영향이
+// 없다. 다만 실제 위치와 다르게 자가진단하면 측정 데이터 품질이 떨어질 수
+// 있어 경고 후 manual_override 플래그로 서버에 함께 기록한다.
+function switchBranchManually(targetBranch) {
+  const label = targetBranch === "indoor" ? "실내" : "외부";
+  const ok = window.confirm(
+    `실제 위치와 다르게 표시하면 측정 기록이 부정확하게 남을 수 있습니다.\n정말 ${label}(으)로 직접 변경하시겠습니까?`
+  );
+  if (!ok) return;
+  state.manualOverride = true;
+  if (targetBranch === "indoor") {
+    goToIndoorForm();
+  } else {
+    goToOutdoorForm();
+  }
+}
+
+el("btn-indoor-to-outdoor").addEventListener("click", () => switchBranchManually("outdoor"));
+el("btn-outdoor-to-indoor").addEventListener("click", () => switchBranchManually("indoor"));
+
 function buildSummary() {
   if (state.locationBranch === "indoor") {
     return {
-      dong: el("input-dong").value,
-      floor: el("input-floor").value,
       room: el("input-room").value,
       corridor: el("input-corridor").value,
     };
@@ -120,7 +141,7 @@ function buildSummary() {
 }
 
 function validateIndoorForm() {
-  const ids = ["input-dong", "input-floor", "input-room", "input-corridor"];
+  const ids = ["input-room", "input-corridor"];
   return ids.every((id) => el(id).value.trim() !== "");
 }
 
@@ -301,9 +322,9 @@ async function submitMeasurement() {
   const body = {
     lat: state.lat, lng: state.lng, accuracy_m: state.accuracy,
     carrier: state.carrier,
-    dong: state.form.dong, floor: state.form.floor,
     room: state.form.room, corridor: state.form.corridor,
     note: state.form.note,
+    manual_override: state.manualOverride,
     ...state.measurement,
   };
 
@@ -339,10 +360,10 @@ async function submitMeasurement() {
     ? resBody.error
     : `제출 실패 (status ${res.status})`;
 
-  if (errorMessage.includes("dong/floor/room/corridor are required when indoors")) {
+  if (errorMessage.includes("room/corridor are required when indoors")) {
     // GPS 확인 시점(T0)과 제출 시점(T1) 사이에 통금 경계를 넘어가 서버가
     // 실내로 재판정한 경우. 이미 측정한 값은 유지한 채 실내 폼으로 보내
-    // 동/층/호실/복도만 추가로 받는다(측정은 다시 하지 않는다).
+    // 호실/복도만 추가로 받는다(측정은 다시 하지 않는다).
     goToIndoorForm();
     return;
   }

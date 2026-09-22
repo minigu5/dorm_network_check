@@ -32,12 +32,11 @@
 
     <section id="step-form-indoor" hidden>
       <h2>실내 측정 정보</h2>
-      <label>동 <input id="input-dong" type="text" required /></label>
-      <label>층 <input id="input-floor" type="text" required /></label>
       <label>호실 <input id="input-room" type="text" required /></label>
       <label>복도 <input id="input-corridor" type="text" required /></label>
-      <p id="indoor-validation-error" hidden>동/층/호실/복도를 모두 입력해 주세요.</p>
+      <p id="indoor-validation-error" hidden>호실/복도를 모두 입력해 주세요.</p>
       <button id="btn-indoor-next">다음</button>
+      <button id="btn-indoor-to-outdoor" type="button">사실 외부예요 (직접 변경)</button>
     </section>
 
     <section id="step-form-outdoor" hidden>
@@ -45,6 +44,7 @@
       <p id="outdoor-coords"></p>
       <label>설명(선택) <input id="input-note" type="text" placeholder="예: 정문 앞 버스정류장" /></label>
       <button id="btn-outdoor-next">다음</button>
+      <button id="btn-outdoor-to-indoor" type="button">사실 실내예요 (직접 변경)</button>
     </section>
 
     <section id="step-confirm" hidden>

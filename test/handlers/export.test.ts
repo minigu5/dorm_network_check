@@ -16,6 +16,7 @@ describe("handleExport", () => {
       carrier: "SKT", network_org: "SK Telecom", os: "Android",
       download_mbps: 50, upload_mbps: 10, ping_ms: 25, jitter_ms: 3, packet_loss_pct: 0,
       raw_samples: "{}",
+      manual_override: 0,
     });
   });
 
@@ -33,6 +34,7 @@ describe("handleExport", () => {
     const text = await res.text();
     expect(text).toContain("carrier");
     expect(text).toContain("SKT");
+    expect(text).toContain("manual_override");
   });
 
   it("빈 테이블일 때도 헤더 행을 반환한다", async () => {
