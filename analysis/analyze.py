@@ -13,7 +13,13 @@ def build_report(df: pd.DataFrame) -> str:
     else:
         indoor = df[df["location_tag"] == "실내"].copy()
 
-        if not indoor.empty:
+        # Whichever chart ends up first in `sections` must load Plotly.js
+        # from the CDN; every later chart can rely on it already being
+        # loaded on the page. Only the heatmap is conditional, so track
+        # whether it was actually emitted.
+        heatmap_included = not indoor.empty
+
+        if heatmap_included:
             heatmap_df = (
                 indoor.groupby(["dong", "floor", "corridor"], dropna=False)["download_mbps"]
                 .mean()
@@ -29,9 +35,14 @@ def build_report(df: pd.DataFrame) -> str:
             df, x="carrier", y="download_mbps", color="carrier",
             title="통신사별 다운로드 속도 비교(Mbps)",
         )
-        sections.append(pio.to_html(fig2, full_html=False, include_plotlyjs=False))
+        sections.append(
+            pio.to_html(fig2, full_html=False, include_plotlyjs=False if heatmap_included else "cdn")
+        )
 
-        df["hour"] = pd.to_datetime(df["created_at"]).dt.hour
+        # created_at is UTC ISO-8601 ("...Z"); this project's day/night
+        # logic (see src/lib/curfew.ts) is defined in KST (UTC+9), so the
+        # hourly chart must bucket by KST hour-of-day, not raw UTC hour.
+        df["hour"] = (pd.to_datetime(df["created_at"], utc=True) + pd.Timedelta(hours=9)).dt.hour
         hourly = df.groupby("hour")["download_mbps"].mean().reset_index()
         fig3 = px.line(hourly, x="hour", y="download_mbps", title="시간대별 평균 다운로드 속도(Mbps)")
         sections.append(pio.to_html(fig3, full_html=False, include_plotlyjs=False))
