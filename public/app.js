@@ -72,7 +72,11 @@ function renderHistoryEntry(entry) {
 function renderResult(entry) {
   el("result-summary").innerHTML = "";
   el("result-summary").appendChild(renderHistoryEntry(entry));
+}
 
+// 어느 단계(네트워크 확인/위치 확인/폼 입력/측정 중/완료)에 있든 화면 하단에
+// 항상 보이도록 main 바깥의 고정 영역에 렌더링한다(특정 step section에 속하지 않음).
+function renderHistoryList() {
   const listEl = el("history-list");
   listEl.innerHTML = "";
   for (const past of loadHistory()) {
@@ -466,6 +470,7 @@ async function submitMeasurement() {
       packet_loss_pct: state.measurement.packet_loss_pct,
     };
     saveHistoryEntry(entry);
+    renderHistoryList();
 
     state.measurement = null;
     state.retryAction = null;
@@ -502,4 +507,5 @@ el("btn-measuring-retry").addEventListener("click", () => {
   }
 });
 
+renderHistoryList();
 step1CheckNetwork();
