@@ -93,12 +93,14 @@ async function step2CheckLocation() {
 function goToIndoorForm() {
   hide("step-location");
   hide("step-measuring");
+  hide("step-form-outdoor");
   state.locationBranch = "indoor";
   show("step-form-indoor");
 }
 
 function goToOutdoorForm() {
   hide("step-location");
+  hide("step-form-indoor");
   state.locationBranch = "outdoor";
   el("outdoor-coords").textContent = state.lat
     ? `GPS: ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`
@@ -112,7 +114,7 @@ function goToOutdoorForm() {
 // 없다. 다만 실제 위치와 다르게 자가진단하면 측정 데이터 품질이 떨어질 수
 // 있어 경고 후 manual_override 플래그로 서버에 함께 기록한다.
 function switchBranchManually(targetBranch) {
-  const label = targetBranch === "indoor" ? "실내" : "외부";
+  const label = targetBranch === "indoor" ? "기숙사 안" : "기숙사 밖";
   const ok = window.confirm(
     `실제 위치와 다르게 표시하면 측정 기록이 부정확하게 남을 수 있습니다.\n정말 ${label}(으)로 직접 변경하시겠습니까?`
   );
