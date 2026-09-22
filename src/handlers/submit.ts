@@ -1,7 +1,7 @@
 import type { Env } from "../env";
 import { getCfProperties, getClientIp, detectCarrier, isBlockedWifiIp } from "../lib/network";
-import { isWithinGeofence } from "../lib/geo";
-import { isCurfewWindow, resolveLocationTag, type RawLocationTag } from "../lib/curfew";
+import { haversineDistanceMeters } from "../lib/geo";
+import { isTrustedWindow, resolveLocationTag, type RawLocationTag } from "../lib/curfew";
 import { CURFEW_RADIUS_M, DEFAULT_RADIUS_M } from "../config";
 import { parseOS } from "../lib/userAgent";
 import { insertMeasurement, type MeasurementInput } from "../lib/db";
@@ -79,10 +79,11 @@ export async function handleSubmit(
 
   const dormLat = Number(env.DORM_LAT);
   const dormLng = Number(env.DORM_LNG);
-  const curfew = isCurfewWindow(now);
-  const radius = curfew ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
+  const trusted = isTrustedWindow(now);
+  const radius = trusted ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
 
   let rawLocationTag: RawLocationTag;
+  let distanceM: number | null = null;
   if (
     typeof body.lat !== "number" ||
     typeof body.lng !== "number" ||
@@ -90,13 +91,16 @@ export async function handleSubmit(
     !Number.isFinite(body.lng)
   ) {
     rawLocationTag = "미확인";
-  } else if (isWithinGeofence(body.lat, body.lng, dormLat, dormLng, radius)) {
-    rawLocationTag = "실내";
   } else {
-    rawLocationTag = "외부";
+    distanceM = haversineDistanceMeters(body.lat, body.lng, dormLat, dormLng);
+    rawLocationTag = distanceM <= radius ? "실내" : "외부";
   }
 
-  const locationTag = resolveLocationTag(rawLocationTag, curfew);
+  const accuracyM =
+    typeof body.accuracy_m === "number" && Number.isFinite(body.accuracy_m)
+      ? body.accuracy_m
+      : null;
+  const locationTag = resolveLocationTag(rawLocationTag, trusted, distanceM, accuracyM);
 
   let indoorFields: { dong: string; floor: string; room: string; corridor: string } | null = null;
   if (locationTag === "실내") {
@@ -121,7 +125,7 @@ export async function handleSubmit(
     lng: body.lng ?? null,
     accuracy_m: body.accuracy_m ?? null,
     raw_location_tag: rawLocationTag,
-    is_curfew_window: curfew ? 1 : 0,
+    is_curfew_window: trusted ? 1 : 0,
     location_tag: locationTag,
     dong: indoorFields?.dong ?? null,
     floor: indoorFields?.floor ?? null,

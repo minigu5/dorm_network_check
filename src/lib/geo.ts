@@ -18,13 +18,3 @@ export function haversineDistanceMeters(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return EARTH_RADIUS_M * c;
 }
-
-export function isWithinGeofence(
-  lat: number,
-  lng: number,
-  centerLat: number,
-  centerLng: number,
-  radiusM: number
-): boolean {
-  return haversineDistanceMeters(lat, lng, centerLat, centerLng) <= radiusM;
-}

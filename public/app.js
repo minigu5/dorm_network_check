@@ -65,7 +65,7 @@ async function step2CheckLocation() {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
         const res = await fetch(
-          `/api/location-check?lat=${state.lat}&lng=${state.lng}`,
+          `/api/location-check?lat=${state.lat}&lng=${state.lng}&accuracy=${state.accuracy}`,
           { signal: controller.signal }
         );
         clearTimeout(timeout);

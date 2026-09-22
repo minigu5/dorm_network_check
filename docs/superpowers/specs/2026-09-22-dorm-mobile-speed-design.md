@@ -115,25 +115,51 @@
 - 위치 권한 거부 시 `raw_location_tag = 미확인`으로 저장하고, 분석 시 해당 행은
   제외한다(제출 자체는 허용).
 
-### 5-2. 입소 시간대 및 GPS 관용 반경
-- 입소 인정 시간대(하루 기준, KST): **23:10~07:20**(자정 경과 포함), **18:05~18:55**.
-- 입소 시간대 안에서는 기숙사 밖으로 나갈 수 없으므로 GPS 판정을 관대하게 하여
-  반경 **40m**를 사용(건물 오차/학교와 기숙사가 인접해 있는 점 감안).
-- 입소 시간대 밖에서는 GPS가 실내를 가리켜도 `실내` 판정을 신뢰하지 않는다(등교
-  중 잠시 들른 경우 등을 배제하기 위함).
+### 5-2. 신뢰 구간(통금/개방 시간)과 요일 유형
+
+이 시간대엔 학생이 실제로 기숙사에 있을 확률이 매우 높다고 보고 GPS 판정을
+관대하게 한다("신뢰 구간"). 통금(야간)은 그 날 저녁이 평일인지 휴일 전야인지에
+따라 시작/종료 시각이 다르고, 저녁 개방 시간(강제 아님)은 별도로 존재한다.
+
+- **통금(야간)**: 평일(월~금, 공휴일 아님) **23:00~다음날 07:00**, 휴일 전야
+  (토/일/공휴일) **22:00~다음날 07:30**. 자정을 넘어가도 "그 날 저녁"의 요일
+  유형을 그대로 쓴다(토요일 밤 22시에 시작한 통금은 일요일 07:30까지 휴일
+  규칙 유지). 금요일 밤은 평일 규칙(23:00 시작)을 쓴다.
+- **저녁 개방 시간(강제 아님)**: 평일 **18:00~18:50**, 주말(토/일만, 공휴일
+  아닌 평일은 제외) **17:00~17:50**.
+- **휴일 판정**: 토/일 + 한국 공휴일(설날/추석 등 음력 공휴일 포함, 매년 갱신
+  필요 — `src/config.ts`의 `KOREAN_HOLIDAYS` 참고. 대체공휴일 미반영).
+- 신뢰 구간 안에서는 GPS 판정 반경 **40m**(`CURFEW_RADIUS_M`), 밖에서는
+  **25m**(`DEFAULT_RADIUS_M`)를 기본 반경으로 쓴다(이 값은 감사용
+  `raw_location_tag` 계산에만 쓰이고, 최종 판정은 5-3의 GPS 오차 관용 로직을
+  따로 거친다).
 
 ### 5-3. 최종 판정 로직 (서버, `created_at` 기준)
-```
-raw = GPS geofence 판정 (실내 / 외부 / 미확인)
 
-if 현재시각이 입소시간대(23:10~07:20 또는 18:05~18:55) 안:
-    location_tag = raw            # GPS 그대로 신뢰 (반경 40m 관용)
+아이폰 실내 GPS는 위성 신호가 약해져 정확도가 크게 떨어지는 경우가 흔하다.
+신뢰 구간 안에서 순수 반경(40m)만으로 판정하면 실제로 기숙사 안에 있어도
+"외부"로 오판되는 사례가 잦았다. 그래서 신뢰 구간 안에서는 GPS 오차
+(`accuracy_m`)를 감안한 유효거리가 확실히 멀 때만("멀리 있다고 확신할 수
+있을 때만") 외부로 뒤집고, 그 외에는 기본값을 실내로 둔다.
+
+```
+raw = 반경(신뢰 구간 40m / 그 외 25m) 기준 GPS geofence 판정 (실내 / 외부 / 미확인)
+
+if 현재시각이 신뢰 구간(§5-2) 안:
+    if raw == "미확인":
+        location_tag = "미확인"
+    else:
+        유효거리 = max(0, 실제거리 - accuracy_m)
+        location_tag = 유효거리 > 200m ? "외부" : "실내"   # CURFEW_FAR_AWAY_RADIUS_M
 else:
     if raw == "실내":
-        location_tag = "외부"      # 시간대 밖이면 실내 판정 무효화
+        location_tag = "외부"      # 신뢰 구간 밖이면 실내 판정 무효화
     else:
         location_tag = raw         # 외부/미확인은 그대로 유지
 ```
+- `CURFEW_FAR_AWAY_RADIUS_M`(기본 200m)은 튜닝 대상이다: 너무 크면 학교의
+  다른 인접 건물에 있어도 실내로 오판할 위험이, 너무 작으면 여전히 GPS 오차로
+  실내 판정을 못 받는 문제가 재발할 수 있다.
 - "외부" 데이터도 거부하지 않고 그대로 저장한다(학생마다 요금제가 달라 교내/외
   비교가 필요하므로 유효한 분석 축으로 사용).
 
@@ -170,7 +196,7 @@ CREATE TABLE measurements (
   created_at TEXT NOT NULL,          -- 서버 KST 타임스탬프 (ISO 8601)
   lat REAL, lng REAL, accuracy_m REAL,
   raw_location_tag TEXT,             -- GPS geofence 원본 판정: 실내/외부/미확인
-  is_curfew_window INTEGER,          -- 0/1
+  is_curfew_window INTEGER,          -- 0/1, §5-2 신뢰 구간(통금+개방시간) 여부
   location_tag TEXT NOT NULL,        -- 최종 판정: 실내/외부/미확인
   dong TEXT, floor TEXT, room TEXT, corridor TEXT,  -- 실내 판정일 때만 채움
   note TEXT,                         -- 외부/미확인일 때 선택적 자유 설명
@@ -187,17 +213,23 @@ CREATE TABLE measurements (
 ## 9. API 명세
 
 - `GET /` — 측정 페이지 서빙(정적 shell, §3 플로우를 클라이언트 JS로 진행).
-- `GET /api/network-check` — §3 1단계용. asOrganization만 판정해 `mobile` /
-  `wifi_or_other` 반환, 저장 없음.
+- `GET /api/network-check` — §3 1단계용. `CF-Connecting-IP`가 §4의
+  `BLOCKED_WIFI_IPS`에 있으면 무조건, 아니면 asOrganization으로 판정해
+  `{status: "mobile"|"wifi_or_other", carrier: "SKT"|"KT"|"LGU+"|null}` 반환,
+  저장 없음.
+- `GET /api/location-check?lat=&lng=&accuracy=` — §3 2단계용. §5-3의 판정
+  로직(신뢰 구간 + GPS 오차 관용)을 그대로 써서 `{tag}`만 반환, 저장 없음.
+  `POST /api/submit`과 반드시 같은 로직을 재사용해야 한다(별도 구현 금지).
 - `GET /api/download?size=N` — N바이트 랜덤 데이터 스트리밍(다운로드 측정용).
 - `POST /api/upload` — 요청 바디 수신 후 폐기(클라이언트가 elapsed time 측정).
 - `GET /api/ping` — 최소 응답(RTT/지터/패킷로스 측정용, 클라이언트가 반복 호출).
 - `POST /api/submit` (§3 6단계, 사용자가 4단계 확인을 마친 뒤에만 클라이언트가
   호출):
-  1. `request.cf.asOrganization`으로 WiFi/타 네트워크 여부 **재확인** → 아니면 400
-     거부.
-  2. GPS 좌표로 `raw_location_tag` **재계산**.
-  3. 서버 시각으로 `is_curfew_window` 계산, 최종 `location_tag` 확정.
+  1. `CF-Connecting-IP`/`asOrganization`으로 WiFi/타 네트워크 여부 **재확인**,
+     통신사(carrier)도 asOrganization에서 **재판별**(클라이언트가 보낸 값은
+     신뢰하지 않음) → 모바일망 아니면 400 거부.
+  2. GPS 좌표+정확도로 `raw_location_tag`·최종 `location_tag` **재계산**(§5-3).
+  3. 서버 시각으로 `is_curfew_window`(신뢰 구간 여부) 계산.
   4. `location_tag`가 실내면 dong/floor/room/corridor 필수, 아니면 `note`만 허용.
   5. D1에 insert.
 - `GET /api/export?key=...` — 전체 데이터 CSV/JSON 반환(분석용, 비밀 쿼리 파라미터로

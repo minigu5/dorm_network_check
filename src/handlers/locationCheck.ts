@@ -1,6 +1,6 @@
 import type { Env } from "../env";
-import { isWithinGeofence } from "../lib/geo";
-import { isCurfewWindow, resolveLocationTag, type RawLocationTag } from "../lib/curfew";
+import { haversineDistanceMeters } from "../lib/geo";
+import { isTrustedWindow, resolveLocationTag, type RawLocationTag } from "../lib/curfew";
 import { CURFEW_RADIUS_M, DEFAULT_RADIUS_M } from "../config";
 
 export function handleLocationCheck(
@@ -11,25 +11,26 @@ export function handleLocationCheck(
   const url = new URL(request.url);
   const latParam = url.searchParams.get("lat");
   const lngParam = url.searchParams.get("lng");
+  const accuracyParam = url.searchParams.get("accuracy");
 
   let tag: RawLocationTag;
-  if (latParam === null || lngParam === null) {
+  const lat = latParam !== null ? Number(latParam) : NaN;
+  const lng = lngParam !== null ? Number(lngParam) : NaN;
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     tag = "미확인";
   } else {
-    const lat = Number(latParam);
-    const lng = Number(lngParam);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      tag = "미확인";
-    } else {
-      const dormLat = Number(env.DORM_LAT);
-      const dormLng = Number(env.DORM_LNG);
-      const curfew = isCurfewWindow(now);
-      const radius = curfew ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
-      const raw: RawLocationTag = isWithinGeofence(lat, lng, dormLat, dormLng, radius)
-        ? "실내"
-        : "외부";
-      tag = resolveLocationTag(raw, curfew);
-    }
+    const dormLat = Number(env.DORM_LAT);
+    const dormLng = Number(env.DORM_LNG);
+    const trusted = isTrustedWindow(now);
+    const radius = trusted ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
+    const distanceM = haversineDistanceMeters(lat, lng, dormLat, dormLng);
+    const raw: RawLocationTag = distanceM <= radius ? "실내" : "외부";
+
+    const accuracyParsed = accuracyParam !== null ? Number(accuracyParam) : NaN;
+    const accuracyM = Number.isFinite(accuracyParsed) ? accuracyParsed : null;
+
+    tag = resolveLocationTag(raw, trusted, distanceM, accuracyM);
   }
 
   return new Response(JSON.stringify({ tag }), {

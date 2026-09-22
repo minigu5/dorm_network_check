@@ -34,4 +34,29 @@ describe("handleLocationCheck", () => {
     const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     return res.json().then((body) => expect(body).toEqual({ tag: "미확인" }));
   });
+
+  it("입소 시간대엔 반경(40m)을 넘어도 GPS 오차 감안 범위(200m) 안이면 실내", () => {
+    // 기준점에서 위도로 약 100m 떨어진 좌표 (0.000898deg * 111320m/deg ≈ 100m)
+    const req = new Request("https://example.com/api/location-check?lat=37.500898&lng=127.0");
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "실내" }));
+  });
+
+  it("입소 시간대엔 GPS 오차(accuracy)를 감안해서 실내로 인정한다", () => {
+    // 실제 거리 약 250m(0.002245deg), GPS 오차 100m -> 유효거리 약 150m -> 실내
+    const req = new Request(
+      "https://example.com/api/location-check?lat=37.502245&lng=127.0&accuracy=100"
+    );
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "실내" }));
+  });
+
+  it("입소 시간대라도 오차를 감안해도 확실히 멀면 외부", () => {
+    // 실제 거리 약 600m(0.00539deg), GPS 오차 100m -> 유효거리 약 500m -> 외부
+    const req = new Request(
+      "https://example.com/api/location-check?lat=37.50539&lng=127.0&accuracy=100"
+    );
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "외부" }));
+  });
 });
