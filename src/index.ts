@@ -4,6 +4,7 @@ import { handleLocationCheck } from "./handlers/locationCheck";
 import { handleDownload } from "./handlers/download";
 import { handleUpload } from "./handlers/upload";
 import { handlePing } from "./handlers/ping";
+import { handleSubmit } from "./handlers/submit";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -22,6 +23,9 @@ export default {
     }
     if (url.pathname === "/api/ping") {
       return handlePing();
+    }
+    if (url.pathname === "/api/submit" && request.method === "POST") {
+      return handleSubmit(request, env);
     }
     if (url.pathname.startsWith("/api/")) {
       return new Response("Not Found", { status: 404 });
