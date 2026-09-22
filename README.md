@@ -9,6 +9,7 @@
 ```bash
 npm install
 npm test
+npm run db:migrate:local  # 로컬 D1에 스키마 적용(안 하면 /api/submit이 로컬에서 실패함)
 npm run dev
 ```
 
@@ -38,7 +39,11 @@ npm run dev
 9. **배포 후 필수 점검:** `src/config.ts`의 `MOBILE_CARRIER_ORG_KEYWORDS`가 실제
    `asOrganization` 값과 맞는지 확인한다. Cloudflare 대시보드의 Workers 로그(또는
    임시로 `network_org` 컬럼 확인)로 실제 접속 시 찍히는 값을 보고 필요하면 키워드를
-   추가/수정한 뒤 재배포한다.
+   추가/수정한 뒤 재배포한다. **특히 기숙사 자체 WiFi로 접속했을 때 찍히는
+   `network_org` 값을 반드시 확인해서, 그 값이 목록의 어떤 키워드와도 일치하지
+   않는지 검증할 것** — 만약 일치한다면(예: 기숙사 WiFi가 SK브로드밴드/LG데이콤 등
+   유선 사업자 회선을 쓰는 경우) 그 키워드를 즉시 목록에서 제거해야 한다. 그렇지
+   않으면 WiFi 접속이 모바일 데이터로 오판정되어 WiFi 차단(스펙 §4)이 무력화된다.
 
 ## 분석 리포트 생성
 
