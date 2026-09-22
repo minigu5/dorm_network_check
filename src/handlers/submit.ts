@@ -136,7 +136,15 @@ export async function handleSubmit(
     manual_override: body.manual_override === true ? 1 : 0,
   };
 
-  await insertMeasurement(env.DB, measurement);
+  try {
+    await insertMeasurement(env.DB, measurement);
+  } catch (err) {
+    console.error("insertMeasurement failed", err);
+    return new Response(JSON.stringify({ error: "database write failed" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+  }
 
   return new Response(JSON.stringify({ ok: true }), {
     headers: { "content-type": "application/json" },
