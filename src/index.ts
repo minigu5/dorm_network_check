@@ -5,6 +5,7 @@ import { handleDownload } from "./handlers/download";
 import { handleUpload } from "./handlers/upload";
 import { handlePing } from "./handlers/ping";
 import { handleSubmit } from "./handlers/submit";
+import { handleExport } from "./handlers/export";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -26,6 +27,9 @@ export default {
     }
     if (url.pathname === "/api/submit" && request.method === "POST") {
       return handleSubmit(request, env);
+    }
+    if (url.pathname === "/api/export") {
+      return handleExport(request, env);
     }
     if (url.pathname.startsWith("/api/")) {
       return new Response("Not Found", { status: 404 });
