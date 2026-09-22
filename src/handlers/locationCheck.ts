@@ -16,12 +16,12 @@ export function handleLocationCheck(
   let tag: RawLocationTag;
   const lat = latParam !== null ? Number(latParam) : NaN;
   const lng = lngParam !== null ? Number(lngParam) : NaN;
+  const dormLat = Number(env.DORM_LAT);
+  const dormLng = Number(env.DORM_LNG);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     tag = "미확인";
   } else {
-    const dormLat = Number(env.DORM_LAT);
-    const dormLng = Number(env.DORM_LNG);
     const trusted = isTrustedWindow(now);
     const radius = trusted ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
     const distanceM = haversineDistanceMeters(lat, lng, dormLat, dormLng);
@@ -33,7 +33,8 @@ export function handleLocationCheck(
     tag = resolveLocationTag(raw, trusted, distanceM, accuracyM);
   }
 
-  return new Response(JSON.stringify({ tag }), {
+  // 사용자가 자기 GPS 값과 기숙사 기준 좌표를 직접 비교해볼 수 있도록 함께 내려준다.
+  return new Response(JSON.stringify({ tag, dormLat, dormLng }), {
     headers: { "content-type": "application/json" },
   });
 }

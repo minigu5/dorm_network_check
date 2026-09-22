@@ -9,6 +9,7 @@ const state = {
   networkOk: false,
   carrier: null, // 서버가 자동 감지한 통신사(SKT/KT/LGU+), 사용자가 직접 선택하지 않음
   lat: null, lng: null, accuracy: null,
+  dormLat: null, dormLng: null, // 서버가 알려주는 기숙사 기준 좌표(비교용 표시)
   locationBranch: null, // "indoor" | "outdoor"
   manualOverride: false, // 사용자가 경고를 보고 직접 실내/외부 폼을 뒤집었는지
   form: {},
@@ -128,7 +129,9 @@ async function step2CheckLocation() {
           { signal: controller.signal }
         );
         clearTimeout(timeout);
-        const { tag } = await res.json();
+        const { tag, dormLat, dormLng } = await res.json();
+        state.dormLat = dormLat;
+        state.dormLng = dormLng;
         if (tag === "실내") {
           goToIndoorForm();
         } else {
@@ -161,12 +164,25 @@ function updateIndoorFieldVisibility() {
 el("input-is-corridor-yes").addEventListener("change", updateIndoorFieldVisibility);
 el("input-is-corridor-no").addEventListener("change", updateIndoorFieldVisibility);
 
+// 실내/외부 폼 양쪽에서 내 GPS와 기숙사 기준 좌표를 2줄로 나란히 보여준다.
+// 실내에서도 판정 근거(왜 실내로 잡혔는지)를 사용자가 직접 확인할 수 있게 하기 위함.
+function renderGpsInfo(elId) {
+  const mine = state.lat
+    ? `내 GPS: ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`
+    : "내 GPS: 확인 안 됨";
+  const dorm = state.dormLat != null && state.dormLng != null
+    ? `기숙사 GPS: ${state.dormLat.toFixed(5)}, ${state.dormLng.toFixed(5)}`
+    : "기숙사 GPS: 확인 안 됨";
+  el(elId).innerHTML = `${mine}<br>${dorm}`;
+}
+
 function goToIndoorForm() {
   hide("step-location");
   hide("step-measuring");
   hide("step-form-outdoor");
   state.locationBranch = "indoor";
   updateIndoorFieldVisibility();
+  renderGpsInfo("indoor-coords");
   show("step-form-indoor");
 }
 
@@ -174,9 +190,7 @@ function goToOutdoorForm() {
   hide("step-location");
   hide("step-form-indoor");
   state.locationBranch = "outdoor";
-  el("outdoor-coords").textContent = state.lat
-    ? `GPS: ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`
-    : "GPS: 확인 안 됨";
+  renderGpsInfo("outdoor-coords");
   show("step-form-outdoor");
 }
 
