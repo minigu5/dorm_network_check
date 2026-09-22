@@ -242,6 +242,8 @@ async function runMeasurementAndSubmit() {
 }
 
 async function submitMeasurement() {
+  hide("step-confirm");
+  show("step-measuring");
   hide("btn-measuring-retry");
   el("measuring-status").textContent = "제출 중...";
 
