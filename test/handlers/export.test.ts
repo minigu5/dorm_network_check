@@ -12,7 +12,7 @@ describe("handleExport", () => {
       created_at: "2026-09-22T14:30:00.000Z",
       lat: 37.5, lng: 127.0, accuracy_m: 10,
       raw_location_tag: "실내", is_curfew_window: 1, location_tag: "실내",
-      dong: "3동", floor: "5", room: "512", corridor: "A", note: null,
+      room: "512", corridor: "A", note: null,
       carrier: "SKT", network_org: "SK Telecom", os: "Android",
       download_mbps: 50, upload_mbps: 10, ping_ms: 25, jitter_ms: 3, packet_loss_pct: 0,
       raw_samples: "{}",

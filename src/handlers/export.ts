@@ -1,7 +1,7 @@
 import type { Env } from "../env";
 import { exportAllMeasurements } from "../lib/db";
 
-// Column names from measurements table schema (matching migration 0001)
+// Column names from measurements table schema (matching migrations 0001-0003)
 const HEADERS = [
   "id",
   "created_at",
@@ -11,8 +11,6 @@ const HEADERS = [
   "raw_location_tag",
   "is_curfew_window",
   "location_tag",
-  "dong",
-  "floor",
   "room",
   "corridor",
   "note",

@@ -85,13 +85,11 @@ describe("handleSubmit", () => {
     expect(res.status).toBe(400);
   });
 
-  it("실내로 판정되고 동/층 정보 없이 호실/복도만 있어도 200으로 저장된다", async () => {
+  it("실내로 판정되고 호실/복도만 있어도 200으로 저장된다", async () => {
     const req = makeRequest(baseBody, { asOrganization: "SK Telecom" });
     const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     expect(res.status).toBe(200);
     const rows = await exportAllMeasurements(env.DB);
-    expect(rows[0].dong).toBeNull();
-    expect(rows[0].floor).toBeNull();
     expect(rows[0].room).toBe("512");
     expect(rows[0].corridor).toBe("A");
   });

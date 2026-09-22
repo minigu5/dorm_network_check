@@ -119,8 +119,6 @@ export async function handleSubmit(
     raw_location_tag: rawLocationTag,
     is_curfew_window: trusted ? 1 : 0,
     location_tag: locationTag,
-    dong: null,
-    floor: null,
     room: indoorFields?.room ?? null,
     corridor: indoorFields?.corridor ?? null,
     note: locationTag === "실내" ? null : note,

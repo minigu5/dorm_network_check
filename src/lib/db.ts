@@ -6,8 +6,6 @@ export interface MeasurementInput {
   raw_location_tag: string;
   is_curfew_window: number;
   location_tag: string;
-  dong: string | null;
-  floor: string | null;
   room: string | null;
   corridor: string | null;
   note: string | null;
@@ -31,14 +29,14 @@ export async function insertMeasurement(
     .prepare(
       `INSERT INTO measurements (
         created_at, lat, lng, accuracy_m, raw_location_tag, is_curfew_window,
-        location_tag, dong, floor, room, corridor, note, carrier, network_org, os,
+        location_tag, room, corridor, note, carrier, network_org, os,
         download_mbps, upload_mbps, ping_ms, jitter_ms, packet_loss_pct, raw_samples,
         manual_override
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .bind(
       m.created_at, m.lat, m.lng, m.accuracy_m, m.raw_location_tag, m.is_curfew_window,
-      m.location_tag, m.dong, m.floor, m.room, m.corridor, m.note, m.carrier,
+      m.location_tag, m.room, m.corridor, m.note, m.carrier,
       m.network_org, m.os, m.download_mbps, m.upload_mbps, m.ping_ms, m.jitter_ms,
       m.packet_loss_pct, m.raw_samples, m.manual_override
     )

@@ -9,7 +9,7 @@ function sampleInput(overrides: Partial<MeasurementInput> = {}): MeasurementInpu
     raw_location_tag: "실내",
     is_curfew_window: 1,
     location_tag: "실내",
-    dong: "3동", floor: "5", room: "512", corridor: "A",
+    room: "512", corridor: "A",
     note: null,
     carrier: "SKT",
     network_org: "SK Telecom",
@@ -35,18 +35,18 @@ describe("insertMeasurement / exportAllMeasurements", () => {
     expect(rows[0].location_tag).toBe("실내");
   });
 
-  it("외부 판정 행은 dong/floor/room/corridor가 null일 수 있다", async () => {
+  it("외부 판정 행은 room/corridor가 null일 수 있다", async () => {
     await insertMeasurement(
       env.DB,
       sampleInput({
         location_tag: "외부", raw_location_tag: "외부",
-        dong: null, floor: null, room: null, corridor: null,
+        room: null, corridor: null,
         note: "정문 앞",
       })
     );
     const rows = await exportAllMeasurements(env.DB);
     expect(rows[0].note).toBe("정문 앞");
-    expect(rows[0].dong).toBeNull();
+    expect(rows[0].room).toBeNull();
   });
 
   it("manual_override 플래그가 저장된다", async () => {
