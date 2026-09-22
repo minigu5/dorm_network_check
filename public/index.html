@@ -1,1 +1,84 @@
-<!doctype html><html><body>placeholder</body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>기숙사 모바일 데이터 속도 측정</title>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/picnic/7.1.0/picnic.min.css"
+  />
+  <style>
+    /* 모바일 최적화: 1단 세로 레이아웃, 터치하기 쉬운 크기, 확대 없이 읽히는 폰트 */
+    body { max-width: 480px; margin: 0 auto; padding: 16px; font-size: 16px; }
+    input, select, button { width: 100%; min-height: 44px; font-size: 16px; margin-bottom: 8px; }
+    button { min-height: 48px; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>기숙사 모바일 데이터 속도 측정</h1>
+
+    <section id="step-network">
+      <p id="network-status">네트워크 확인 중...</p>
+    </section>
+
+    <section id="step-location" hidden>
+      <p id="location-status">위치 확인 중...</p>
+    </section>
+
+    <section id="step-form-indoor" hidden>
+      <h2>실내 측정 정보</h2>
+      <label>동 <input id="input-dong" type="text" /></label>
+      <label>층 <input id="input-floor" type="text" /></label>
+      <label>호실 <input id="input-room" type="text" /></label>
+      <label>복도 <input id="input-corridor" type="text" /></label>
+      <label>통신사
+        <select id="input-carrier-indoor">
+          <option value="SKT">SKT</option>
+          <option value="KT">KT</option>
+          <option value="LGU+">LG U+</option>
+          <option value="알뜰폰">알뜰폰</option>
+          <option value="기타">기타</option>
+        </select>
+      </label>
+      <button id="btn-indoor-next">다음</button>
+    </section>
+
+    <section id="step-form-outdoor" hidden>
+      <h2>외부 측정 정보</h2>
+      <p id="outdoor-coords"></p>
+      <label>설명(선택) <input id="input-note" type="text" placeholder="예: 정문 앞 버스정류장" /></label>
+      <label>통신사
+        <select id="input-carrier-outdoor">
+          <option value="SKT">SKT</option>
+          <option value="KT">KT</option>
+          <option value="LGU+">LG U+</option>
+          <option value="알뜰폰">알뜰폰</option>
+          <option value="기타">기타</option>
+        </select>
+      </label>
+      <button id="btn-outdoor-next">다음</button>
+    </section>
+
+    <section id="step-confirm" hidden>
+      <h2>측정 시작 전 확인</h2>
+      <pre id="confirm-summary"></pre>
+      <button id="btn-confirm-start">이 정보로 측정 시작</button>
+      <button id="btn-confirm-back">뒤로</button>
+    </section>
+
+    <section id="step-measuring" hidden>
+      <p id="measuring-status">측정 중...</p>
+    </section>
+
+    <section id="step-done" hidden>
+      <p>측정 완료. 참여해주셔서 감사합니다.</p>
+      <pre id="result-summary"></pre>
+    </section>
+  </main>
+
+  <script src="stats-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
