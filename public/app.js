@@ -307,25 +307,48 @@ function makeRandomChunk(size) {
 // 고정 크기 대신 고정 시간(durationMs) 동안 반복 요청해서, 회선 속도와 무관하게
 // 총 측정 시간을 비슷하게 유지한다(speedtest.net과 같은 방식). onProgress로
 // 경과시간/전체시간/현재까지의 처리량을 알려줘 진행 상황을 표시할 수 있게 한다.
+// 마지막 청크가 duration 경계 바로 앞에서 시작되면, 느린 회선에서는 그 응답을
+// 기다리는 동안 진행률 콜백이 한동안 호출되지 않아 "0초 남음"에 멈춘 것처럼
+// 보일 수 있다(reader.read()가 resolve돼야 시간 체크가 돌기 때문). 이를 막기
+// 위해 청크마다 유예시간(grace)을 두고 AbortController로 강제 종료한다.
+const DOWNLOAD_CHUNK_GRACE_MS = 1500;
+
 async function measureDownload(durationMs, onProgress) {
   const startTime = performance.now();
   let totalBytes = 0;
 
   while (performance.now() - startTime < durationMs) {
-    const res = await fetch(`/api/download?size=${DOWNLOAD_CHUNK_BYTES}`, { cache: "no-store" });
-    const reader = res.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.length;
-      const elapsedMs = performance.now() - startTime;
-      onProgress({ elapsedMs, totalMs: durationMs, mbps: computeThroughputMbps(totalBytes, elapsedMs) });
-      if (elapsedMs >= durationMs) {
-        // 시간 다 됐으면 현재 청크는 중단한다. 이미 받은 바이트는 totalBytes에
-        // 그대로 남아있으므로 부분 청크도 정확히 집계된다.
-        reader.cancel().catch(() => {});
-        break;
+    const controller = new AbortController();
+    const remainingMs = durationMs - (performance.now() - startTime);
+    const timeoutId = setTimeout(() => controller.abort(), remainingMs + DOWNLOAD_CHUNK_GRACE_MS);
+
+    try {
+      const res = await fetch(`/api/download?size=${DOWNLOAD_CHUNK_BYTES}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const reader = res.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.length;
+        const elapsedMs = performance.now() - startTime;
+        onProgress({ elapsedMs, totalMs: durationMs, mbps: computeThroughputMbps(totalBytes, elapsedMs) });
+        if (elapsedMs >= durationMs) {
+          // 시간 다 됐으면 현재 청크는 중단한다. 이미 받은 바이트는 totalBytes에
+          // 그대로 남아있으므로 부분 청크도 정확히 집계된다.
+          reader.cancel().catch(() => {});
+          break;
+        }
       }
+    } catch (err) {
+      // 유예시간 초과로 강제 중단된 경우: 이미 받은 바이트로 집계하고 측정을
+      // 마친다. 그 외 오류(실제 네트워크 단절 등)는 그대로 올려서 재시도
+      // 버튼이 뜨게 한다.
+      if (err.name === "AbortError") break;
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -381,8 +404,11 @@ async function runMeasurementAndSubmit() {
   function showTimedProgress(label, p) {
     const pct = Math.min(100, Math.round((p.elapsedMs / p.totalMs) * 100));
     const remainingSec = Math.max(0, Math.ceil((p.totalMs - p.elapsedMs) / 1000));
-    el("measuring-status").textContent =
-      `${label} 측정 중... 약 ${remainingSec}초 남음 (현재 ${p.mbps.toFixed(1)} Mbps)`;
+    // remainingSec이 0이어도 마지막 청크 전송이 남아있을 수 있다. "0초 남음"을
+    // 계속 보여주면 멈춘 것처럼 보이므로 마무리 중임을 알리는 문구로 바꾼다.
+    el("measuring-status").textContent = remainingSec > 0
+      ? `${label} 측정 중... 약 ${remainingSec}초 남음 (현재 ${p.mbps.toFixed(1)} Mbps)`
+      : `${label} 측정 마무리 중... (현재 ${p.mbps.toFixed(1)} Mbps)`;
     el("measuring-progress").value = pct;
   }
 
