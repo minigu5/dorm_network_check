@@ -101,4 +101,77 @@ describe("handleSubmit", () => {
     const rows = await exportAllMeasurements(env.DB);
     expect(rows).toHaveLength(0);
   });
+
+  it("accuracy_m이 숫자가 아니면 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(
+      { ...baseBody, accuracy_m: "very accurate" },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("실내 판정에서 dong이 문자열이 아니면(예: 숫자) 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(
+      { ...baseBody, dong: 5 },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("실내 판정에서 dong이 공백 문자열뿐이면 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(
+      { ...baseBody, dong: " " },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("실내 필드 앞뒤 공백은 trim되어 저장된다", async () => {
+    const req = makeRequest(
+      { ...baseBody, dong: "  3동  ", floor: " 5 ", room: " 512 ", corridor: " A " },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(200);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].dong).toBe("3동");
+    expect(rows[0].floor).toBe("5");
+    expect(rows[0].room).toBe("512");
+    expect(rows[0].corridor).toBe("A");
+  });
+
+  it("carrier가 문자열이 아니면 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(
+      { ...baseBody, carrier: 123 },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("note가 문자열이 아니면 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(
+      {
+        ...baseBody,
+        dong: undefined, floor: undefined, room: undefined, corridor: undefined,
+        note: { text: "복도 앞" },
+      },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T05:00:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
 });
