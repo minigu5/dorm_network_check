@@ -90,4 +90,15 @@ describe("handleSubmit", () => {
     const rows = await exportAllMeasurements(env.DB);
     expect(rows[0].location_tag).toBe("미확인");
   });
+
+  it("숫자 측정값 필드가 누락되거나 숫자가 아니면 400으로 거부하고 저장하지 않는다", async () => {
+    const req = makeRequest(
+      { ...baseBody, download_mbps: "fast" },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(400);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows).toHaveLength(0);
+  });
 });

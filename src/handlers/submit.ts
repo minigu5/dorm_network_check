@@ -52,6 +52,19 @@ export async function handleSubmit(
     return badRequest("carrier is required");
   }
 
+  const numericFields: Array<[string, unknown]> = [
+    ["download_mbps", body.download_mbps],
+    ["upload_mbps", body.upload_mbps],
+    ["ping_ms", body.ping_ms],
+    ["jitter_ms", body.jitter_ms],
+    ["packet_loss_pct", body.packet_loss_pct],
+  ];
+  for (const [name, value] of numericFields) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return badRequest(`${name} must be a finite number`);
+    }
+  }
+
   const dormLat = Number(env.DORM_LAT);
   const dormLng = Number(env.DORM_LNG);
   const curfew = isCurfewWindow(now);
