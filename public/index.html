@@ -127,7 +127,6 @@
       background: var(--primary-dark);
     }
 
-    #btn-indoor-to-outdoor,
     #btn-confirm-back,
     #btn-measuring-retry {
       background: transparent;
@@ -241,6 +240,7 @@
 
     <section id="step-form-indoor" hidden>
       <h2>실내 측정 정보</h2>
+      <p id="indoor-redirect-notice" class="gps-info" hidden>GPS상 기숙사 내부로 확인돼 실내 정보 입력이 추가로 필요합니다. 측정 결과는 유지됩니다.</p>
       <p id="indoor-coords" class="gps-info"></p>
       <button type="button" id="btn-select-room" class="indoor-type-btn">방 안입니다.</button>
       <button type="button" id="btn-select-corridor" class="indoor-type-btn">복도입니다.</button>
@@ -259,7 +259,6 @@
       </label>
       <p id="indoor-validation-error" hidden>방 안인지 복도인지 먼저 선택하고, 층/호실을 입력해 주세요.</p>
       <button id="btn-indoor-next" hidden>다음</button>
-      <button id="btn-indoor-to-outdoor" type="button">사실 기숙사 밖이에요. (직접 변경)</button>
     </section>
 
     <section id="step-form-outdoor" hidden>

@@ -17,7 +17,6 @@ const state = {
   dormLat: null, dormLng: null, // 서버가 알려주는 기숙사 기준 좌표(비교용 표시)
   locationBranch: null, // "indoor" | "outdoor"
   indoorType: null, // "room" | "corridor" | null (실내 폼에서 아직 선택 안 함)
-  manualOverride: false, // 사용자가 경고를 보고 직접 실내/외부 폼을 뒤집었는지
   form: {},
   measurement: null, // set once measureDownload/measureUpload/measurePing succeed
   retryAction: null, // "measure" | "submit" -- what btn-measuring-retry should do
@@ -203,13 +202,14 @@ function renderGpsInfo(elId) {
   el(elId).innerHTML = `${mine}<br>${dorm}`;
 }
 
-function goToIndoorForm() {
+function goToIndoorForm(fromResubmit = false) {
   hide("step-location");
   hide("step-measuring");
   hide("step-form-outdoor");
   state.locationBranch = "indoor";
   resetIndoorSelection();
   renderGpsInfo("indoor-coords");
+  el("indoor-redirect-notice").hidden = !fromResubmit;
   show("step-form-indoor");
 }
 
@@ -220,26 +220,6 @@ function goToOutdoorForm() {
   renderGpsInfo("outdoor-coords");
   show("step-form-outdoor");
 }
-
-// GPS/geofence 자동 판정이 틀렸을 때 사용자가 직접 폼을 뒤집을 수 있게 한다.
-// 서버가 제출 시점에 GPS로 최종 판정을 독립적으로 다시 계산하므로(§3 6단계),
-// 이 전환은 어떤 입력 폼을 보여줄지만 바꾸고 실제 실내/외부 기록에는 영향이
-// 없다. 다만 실제 위치와 다르게 자가진단하면 측정 데이터 품질이 떨어질 수
-// 있어 경고 후 manual_override 플래그로 서버에 함께 기록한다.
-//
-// 방향은 실내→외부만 허용한다(외부→실내는 막음): 실내 오탐(자동으로 실내
-// 잡혔지만 실제로는 밖)을 스스로 고칠 수는 있어도, 반대로 없는 실내 기록을
-// 만들어내는 자가진단은 허용하지 않는다.
-function switchToOutdoorManually() {
-  const ok = window.confirm(
-    "실제 위치와 다르게 표시하면 측정 기록이 부정확하게 남을 수 있습니다.\n정말 기숙사 밖(으)로 직접 변경하시겠습니까?"
-  );
-  if (!ok) return;
-  state.manualOverride = true;
-  goToOutdoorForm();
-}
-
-el("btn-indoor-to-outdoor").addEventListener("click", switchToOutdoorManually);
 
 function buildSummary() {
   if (state.locationBranch === "indoor") {
@@ -480,7 +460,6 @@ async function submitMeasurement() {
     carrier: state.carrier,
     room: state.form.room, corridor: state.form.corridor,
     note: state.form.note,
-    manual_override: state.manualOverride,
     ...state.measurement,
   };
 
@@ -536,7 +515,7 @@ async function submitMeasurement() {
     // GPS 확인 시점(T0)과 제출 시점(T1) 사이에 통금 경계를 넘어가 서버가
     // 실내로 재판정한 경우. 이미 측정한 값은 유지한 채 실내 폼으로 보내
     // 호실/복도만 추가로 받는다(측정은 다시 하지 않는다).
-    goToIndoorForm();
+    goToIndoorForm(true);
     return;
   }
 
