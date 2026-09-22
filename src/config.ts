@@ -42,6 +42,8 @@ export const KOREAN_HOLIDAYS: string[] = [
 ];
 
 // 배포 후 실제 요청 로그의 asOrganization 값을 확인해 이 목록을 교정할 것.
+// (실측 사례: LG U+ 모바일망은 asOrganization이 "LG Uplus"가 아니라 구 사명인
+// "LGTELECOM"(AS17853, LG U+의 전신 LG텔레콤)으로 잡혀 WiFi로 오판된 적 있음.)
 //
 // 주의: "sk broadband"(SK브로드밴드)와 "lg dacom"(LG데이콤/LG유플러스의 유선망 전신)은
 // 각각 SK/LG 계열의 "유선"(고정회선) 인터넷 사업자 브랜드이며 모바일망이 아니다. 과거
@@ -60,7 +62,7 @@ export type CarrierName = "SKT" | "KT" | "LGU+";
 export const CARRIER_ORG_KEYWORDS: Record<CarrierName, string[]> = {
   SKT: ["sk telecom"],
   KT: ["kt corporation", "korea telecom"],
-  "LGU+": ["lg uplus", "lguplus"],
+  "LGU+": ["lg uplus", "lguplus", "lgtelecom"],
 };
 
 // asOrganization만으로는 KT 유선/모바일을 구분 못 하는 등 조직명 판정이 뚫리는 경우를
