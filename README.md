@@ -27,6 +27,8 @@ npm run dev
    128.625689)로 채워져 있음. 건물이 넓거나 좌표가 실제 중심과 다르면 재측량해서
    조정한다.
 4. `npx wrangler secret put EXPORT_SECRET` 실행해 `/api/export` 보호용 비밀 키를 등록한다.
+4-1. `npx wrangler secret put IP_HASH_SALT` 실행해 제출 쿨다운(스팸/데이터 오염 방지)용 IP
+   해시 솔트를 등록한다. 아무 랜덤 문자열이면 된다(예: `openssl rand -hex 24`).
 5. `npm run db:migrate:remote`로 원격 D1에 스키마를 적용한다.
 6. `npm run deploy`로 배포한다(`wrangler deploy`, 단일 환경이므로 `--env` 불필요).
 7. Cloudflare 대시보드 → Workers & Pages → `dorm-network-check` Worker 선택 →

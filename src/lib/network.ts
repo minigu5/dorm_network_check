@@ -37,3 +37,13 @@ export function isBlockedWifiIp(ip: string | null): boolean {
   if (!ip) return false;
   return BLOCKED_WIFI_IPS.includes(ip);
 }
+
+// IP를 원문 저장하지 않고 salt를 섞어 해시해서, 제출 스팸(쿨다운) 판별용
+// 동일-출처 식별자로만 쓴다. salt는 EXPORT_SECRET처럼 wrangler secret로 등록.
+export async function hashIp(ip: string, salt: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`${salt}:${ip}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}

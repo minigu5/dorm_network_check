@@ -1,7 +1,8 @@
 import type { Env } from "../env";
 import { exportAllMeasurements } from "../lib/db";
 
-// Column names from measurements table schema (matching migrations 0001-0003)
+// measurements 테이블의 현재 컬럼 목록. 스키마를 바꾸는 마이그레이션을 추가할 때마다
+// (컬럼 추가/삭제) 같이 갱신할 것 -- 안 하면 CSV export에서 누락되거나 어긋난다.
 const HEADERS = [
   "id",
   "created_at",
@@ -24,6 +25,7 @@ const HEADERS = [
   "packet_loss_pct",
   "raw_samples",
   "manual_override",
+  "client_ip_hash",
 ];
 
 function toCsv(rows: Record<string, unknown>[]): string {

@@ -3,7 +3,7 @@ import { env } from "cloudflare:test";
 import { handleExport } from "../../src/handlers/export";
 import { insertMeasurement } from "../../src/lib/db";
 
-const testEnv = { ...env, EXPORT_SECRET: "test-secret" };
+const testEnv = { ...env, EXPORT_SECRET: "test-secret", IP_HASH_SALT: "test-salt" };
 
 describe("handleExport", () => {
   beforeEach(async () => {
@@ -17,6 +17,7 @@ describe("handleExport", () => {
       download_mbps: 50, upload_mbps: 10, ping_ms: 25, jitter_ms: 3, packet_loss_pct: 0,
       raw_samples: "{}",
       manual_override: 0,
+      client_ip_hash: null,
     });
   });
 

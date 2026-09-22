@@ -68,3 +68,29 @@ export const CARRIER_ORG_KEYWORDS: Record<CarrierName, string[]> = {
 // (예: ip.pe.kr 같은 도구로 해당 WiFi에 연결한 기기에서 확인) 이 IP는 학교 네트워크
 // 구성이 바뀌면 함께 바뀔 수 있으니, WiFi 차단이 다시 뚫리면 재확인 후 갱신할 것.
 export const BLOCKED_WIFI_IPS = ["221.168.22.149"];
+
+// 데이터 오염(비정상/조작 값) 방지용 서버 측 범위 검증. 실제 모바일망에서
+// 나올 수 있는 값보다 넉넉히 잡되, 스크립트로 임의 값(음수, 수천 Mbps 등)을
+// 직접 쏘는 걸 막는 게 목적이다. 범위를 벗어나면 /api/submit이 400으로
+// 거부하고 DB에는 아예 들어가지 않는다.
+export const MEASUREMENT_LIMITS = {
+  download_mbps: { min: 0, max: 2000 },
+  upload_mbps: { min: 0, max: 1000 },
+  ping_ms: { min: 0, max: 5000 },
+  jitter_ms: { min: 0, max: 2000 },
+  packet_loss_pct: { min: 0, max: 100 },
+} as const;
+
+// GPS accuracy_m은 클라이언트가 그대로 보내는 값이라, 상한이 없으면
+// resolveLocationTag의 관용 반경(CURFEW_FAR_AWAY_RADIUS_M) 계산에서
+// accuracy_m을 크게 조작해 실제 위치와 무관하게 "실내"로 찍히게 할 수 있다.
+// 다만 실내/저신호 상태의 실제 기기도 이 값이 크게 나올 수 있어서, 제출
+// 자체를 막지는 않고 판정 계산(effectiveDistance)에서만 이 값으로 클램프한다
+// (src/handlers/submit.ts의 accuracyMForTag 참고). 저장하는 accuracy_m은
+// 원본 값 그대로 둔다.
+export const MAX_ACCURACY_M = 200;
+
+// 같은 클라이언트(IP 해시 기준)가 짧은 시간에 반복 제출해 통계를 스팸으로
+// 오염시키는 걸 막기 위한 최소 쿨다운. 통신사 CGNAT로 여러 사용자가 IP를
+// 공유할 수 있어 너무 길게 잡으면 오탐이 생기므로 짧게 유지한다.
+export const SUBMIT_COOLDOWN_SECONDS = 120;

@@ -18,6 +18,7 @@ function sampleInput(overrides: Partial<MeasurementInput> = {}): MeasurementInpu
     ping_ms: 28.5, jitter_ms: 4.2, packet_loss_pct: 0,
     raw_samples: JSON.stringify({ ping: [20, 30] }),
     manual_override: 0,
+    client_ip_hash: null,
     ...overrides,
   };
 }

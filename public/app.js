@@ -226,22 +226,20 @@ function goToOutdoorForm() {
 // 이 전환은 어떤 입력 폼을 보여줄지만 바꾸고 실제 실내/외부 기록에는 영향이
 // 없다. 다만 실제 위치와 다르게 자가진단하면 측정 데이터 품질이 떨어질 수
 // 있어 경고 후 manual_override 플래그로 서버에 함께 기록한다.
-function switchBranchManually(targetBranch) {
-  const label = targetBranch === "indoor" ? "기숙사 안" : "기숙사 밖";
+//
+// 방향은 실내→외부만 허용한다(외부→실내는 막음): 실내 오탐(자동으로 실내
+// 잡혔지만 실제로는 밖)을 스스로 고칠 수는 있어도, 반대로 없는 실내 기록을
+// 만들어내는 자가진단은 허용하지 않는다.
+function switchToOutdoorManually() {
   const ok = window.confirm(
-    `실제 위치와 다르게 표시하면 측정 기록이 부정확하게 남을 수 있습니다.\n정말 ${label}(으)로 직접 변경하시겠습니까?`
+    "실제 위치와 다르게 표시하면 측정 기록이 부정확하게 남을 수 있습니다.\n정말 기숙사 밖(으)로 직접 변경하시겠습니까?"
   );
   if (!ok) return;
   state.manualOverride = true;
-  if (targetBranch === "indoor") {
-    goToIndoorForm();
-  } else {
-    goToOutdoorForm();
-  }
+  goToOutdoorForm();
 }
 
-el("btn-indoor-to-outdoor").addEventListener("click", () => switchBranchManually("outdoor"));
-el("btn-outdoor-to-indoor").addEventListener("click", () => switchBranchManually("indoor"));
+el("btn-indoor-to-outdoor").addEventListener("click", switchToOutdoorManually);
 
 function buildSummary() {
   if (state.locationBranch === "indoor") {
