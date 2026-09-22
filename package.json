@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --env production",
     "test": "vitest run",
     "db:migrate:local": "wrangler d1 migrations apply dorm_network_check --local",
     "db:migrate:remote": "wrangler d1 migrations apply dorm_network_check --remote"
