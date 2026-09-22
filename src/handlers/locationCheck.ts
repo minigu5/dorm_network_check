@@ -18,14 +18,18 @@ export function handleLocationCheck(
   } else {
     const lat = Number(latParam);
     const lng = Number(lngParam);
-    const dormLat = Number(env.DORM_LAT);
-    const dormLng = Number(env.DORM_LNG);
-    const curfew = isCurfewWindow(now);
-    const radius = curfew ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
-    const raw: RawLocationTag = isWithinGeofence(lat, lng, dormLat, dormLng, radius)
-      ? "실내"
-      : "외부";
-    tag = resolveLocationTag(raw, curfew);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      tag = "미확인";
+    } else {
+      const dormLat = Number(env.DORM_LAT);
+      const dormLng = Number(env.DORM_LNG);
+      const curfew = isCurfewWindow(now);
+      const radius = curfew ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
+      const raw: RawLocationTag = isWithinGeofence(lat, lng, dormLat, dormLng, radius)
+        ? "실내"
+        : "외부";
+      tag = resolveLocationTag(raw, curfew);
+    }
   }
 
   return new Response(JSON.stringify({ tag }), {

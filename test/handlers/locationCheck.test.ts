@@ -28,4 +28,10 @@ describe("handleLocationCheck", () => {
     const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
     return res.json().then((body) => expect(body).toEqual({ tag: "미확인" }));
   });
+
+  it("좌표가 숫자가 아니면 미확인", () => {
+    const req = new Request("https://example.com/api/location-check?lat=abc&lng=127.0");
+    const res = handleLocationCheck(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    return res.json().then((body) => expect(body).toEqual({ tag: "미확인" }));
+  });
 });
