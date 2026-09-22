@@ -7,3 +7,4 @@ __pycache__/
 .pytest_cache/
 analysis/measurements.csv
 analysis/report.html
+secrets/
