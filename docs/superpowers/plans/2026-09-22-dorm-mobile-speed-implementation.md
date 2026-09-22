@@ -20,6 +20,7 @@
 - 측정 5종: 다운로드, 업로드, 핑, 지터, 패킷로스(추정치, HTTP 기반 한계 명시).
 - 실제 측정은 §3 4단계 "최종 확인 화면"에서 사용자가 승인한 뒤에만 시작한다.
 - UI는 장식 최소화: 그라데이션/이모지/화려한 애니메이션 금지. 가벼운 클래스리스 CSS 프레임워크(Pico.css, cdnjs) 하나만 CDN으로 불러와 사용하고 커스텀 디자인을 만들지 않는다.
+- UI는 모바일 환경 최적화 필수(실사용자는 전부 휴대폰 브라우저): `viewport` 메타 태그, 항상 1단 세로 레이아웃(가로 스크롤/멀티 컬럼 금지), 터치하기 쉬운 버튼/입력 크기, 확대 없이 읽히는 폰트 크기. 데스크톱 전용 레이아웃 금지.
 - GitHub 저장소: `https://github.com/minigu5/dorm_network_check` (기존 커밋 없음, 이미 로컬 repo와 연결·push 완료).
 - 커스텀 도메인: `dorm.omm.run` (Cloudflare Workers Custom Domain).
 - 분석 리포트는 정적 인터랙티브 HTML 하나(`report.html`, plotly). 실시간 대시보드는 범위 밖.
@@ -1682,6 +1683,12 @@ git commit -m "feat: add GET /api/export endpoint with secret-key auth"
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/picnic/7.1.0/picnic.min.css"
   />
+  <style>
+    /* 모바일 최적화: 1단 세로 레이아웃, 터치하기 쉬운 크기, 확대 없이 읽히는 폰트 */
+    body { max-width: 480px; margin: 0 auto; padding: 16px; font-size: 16px; }
+    input, select, button { width: 100%; min-height: 44px; font-size: 16px; margin-bottom: 8px; }
+    button { min-height: 48px; }
+  </style>
 </head>
 <body>
   <main class="container">
@@ -1952,6 +1959,8 @@ npm run dev
 - 위치 권한을 거부하면 외부 입력 폼(3-b)이 뜬다.
 - 최종 확인 화면에서 입력한 값이 정확히 보이고, "이 정보로 측정 시작"을 누르기 전에는 `/api/submit` 요청이 나가지 않는다(개발자 도구 네트워크 탭으로 확인).
 - 측정 완료 후 결과 요약이 표시된다.
+- 실제 휴대폰 화면 폭(360~430px)에서 가로 스크롤이 생기지 않고, 버튼/입력 필드가
+  손가락으로 누르기 충분히 크며, 텍스트가 확대 없이 읽힌다.
 
 - [ ] **Step 4: 커밋**
 
