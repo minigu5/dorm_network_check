@@ -3,6 +3,7 @@ import { handleNetworkCheck } from "./handlers/networkCheck";
 import { handleLocationCheck } from "./handlers/locationCheck";
 import { handleDownload } from "./handlers/download";
 import { handleUpload } from "./handlers/upload";
+import { handlePing } from "./handlers/ping";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -18,6 +19,9 @@ export default {
     }
     if (url.pathname === "/api/upload" && request.method === "POST") {
       return handleUpload(request);
+    }
+    if (url.pathname === "/api/ping") {
+      return handlePing();
     }
     if (url.pathname.startsWith("/api/")) {
       return new Response("Not Found", { status: 404 });
