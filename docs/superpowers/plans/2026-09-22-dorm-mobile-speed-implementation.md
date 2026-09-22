@@ -1519,6 +1519,17 @@ describe("handleSubmit", () => {
     const rows = await exportAllMeasurements(env.DB);
     expect(rows[0].location_tag).toBe("미확인");
   });
+
+  it("좌표가 숫자가 아니면(예: 문자열) 미확인으로 저장된다", async () => {
+    const req = makeRequest(
+      { ...baseBody, lat: "abc", lng: 127.0, dong: undefined, floor: undefined, room: undefined, corridor: undefined, note: "잘못된 좌표" },
+      { asOrganization: "SK Telecom" }
+    );
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(200);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].location_tag).toBe("미확인");
+  });
 });
 ```
 
@@ -1591,7 +1602,12 @@ export async function handleSubmit(
   const radius = curfew ? CURFEW_RADIUS_M : DEFAULT_RADIUS_M;
 
   let rawLocationTag: RawLocationTag;
-  if (body.lat == null || body.lng == null) {
+  if (
+    typeof body.lat !== "number" ||
+    typeof body.lng !== "number" ||
+    !Number.isFinite(body.lat) ||
+    !Number.isFinite(body.lng)
+  ) {
     rawLocationTag = "미확인";
   } else if (isWithinGeofence(body.lat, body.lng, dormLat, dormLng, radius)) {
     rawLocationTag = "실내";
@@ -1651,7 +1667,7 @@ if (url.pathname === "/api/submit" && request.method === "POST") {
 - [ ] **Step 4: 테스트 통과 확인**
 
 Run: `npm test -- submit.test.ts`
-Expected: PASS (5 tests)
+Expected: PASS (6 tests)
 
 - [ ] **Step 5: 커밋**
 
