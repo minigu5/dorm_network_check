@@ -34,4 +34,15 @@ describe("handleExport", () => {
     expect(text).toContain("carrier");
     expect(text).toContain("SKT");
   });
+
+  it("빈 테이블일 때도 헤더 행을 반환한다", async () => {
+    await env.DB.exec("DELETE FROM measurements");
+    const req = new Request("https://dorm.omm.run/api/export?key=test-secret");
+    const res = await handleExport(req, testEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/csv");
+    const text = await res.text();
+    expect(text).not.toBe("");
+    expect(text).toContain("id,created_at");
+  });
 });
