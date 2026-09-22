@@ -3,6 +3,8 @@ const state = {
   lat: null, lng: null, accuracy: null,
   locationBranch: null, // "indoor" | "outdoor"
   form: {},
+  measurement: null, // set once measureDownload/measureUpload/measurePing succeed
+  retryAction: null, // "measure" | "submit" -- what btn-measuring-retry should do
 };
 
 const el = (id) => document.getElementById(id);
@@ -10,17 +12,28 @@ const show = (id) => { el(id).hidden = false; };
 const hide = (id) => { el(id).hidden = true; };
 
 async function step1CheckNetwork() {
-  const res = await fetch("/api/network-check");
-  const body = await res.json();
-  if (body.status !== "mobile") {
-    el("network-status").textContent =
-      "모바일 데이터로 연결한 뒤 다시 시도하세요. (현재 WiFi 또는 다른 네트워크로 감지됨)";
-    return;
+  try {
+    const res = await fetch("/api/network-check");
+    const body = await res.json();
+    if (body.status !== "mobile") {
+      el("network-status").textContent =
+        "모바일 데이터로 연결한 뒤 다시 시도하세요. (현재 WiFi 또는 다른 네트워크로 감지됨)";
+      show("btn-network-retry");
+      return;
+    }
+    hide("btn-network-retry");
+    state.networkOk = true;
+    el("network-status").textContent = "모바일 데이터 연결 확인됨.";
+    await step2CheckLocation();
+  } catch (err) {
+    // 첫 화면부터 오류 처리가 없으면 사용자가 "네트워크 확인 중..."에 영구히
+    // 머무르게 된다. 재시도 버튼으로 복구 경로를 제공한다.
+    el("network-status").textContent = "네트워크 확인 중 오류 발생";
+    show("btn-network-retry");
   }
-  state.networkOk = true;
-  el("network-status").textContent = "모바일 데이터 연결 확인됨.";
-  await step2CheckLocation();
 }
+
+el("btn-network-retry").addEventListener("click", step1CheckNetwork);
 
 async function step2CheckLocation() {
   hide("step-network");
@@ -69,6 +82,7 @@ async function step2CheckLocation() {
 
 function goToIndoorForm() {
   hide("step-location");
+  hide("step-measuring");
   state.locationBranch = "indoor";
   show("step-form-indoor");
 }
@@ -98,7 +112,20 @@ function buildSummary() {
   };
 }
 
+function validateIndoorForm() {
+  const ids = ["input-dong", "input-floor", "input-room", "input-corridor"];
+  return ids.every((id) => el(id).value.trim() !== "");
+}
+
 function goToConfirm() {
+  if (state.locationBranch === "indoor") {
+    if (!validateIndoorForm()) {
+      show("indoor-validation-error");
+      return;
+    }
+    hide("indoor-validation-error");
+  }
+
   state.form = buildSummary();
   hide("step-form-indoor");
   hide("step-form-outdoor");
@@ -117,24 +144,42 @@ el("btn-confirm-back").addEventListener("click", () => {
   if (state.locationBranch === "indoor") show("step-form-indoor");
   else show("step-form-outdoor");
 });
-el("btn-confirm-start").addEventListener("click", runMeasurementAndSubmit);
+el("btn-confirm-start").addEventListener("click", () => {
+  // 통금/geofence 경계가 GPS 확인 시점과 제출 시점 사이에 바뀌어 서버가
+  // 실내 폼으로 되돌려 보낸 경우(runMeasurementAndSubmit의 400 처리 참고),
+  // 이미 측정한 값이 남아 있으므로 재측정 없이 제출만 다시 시도한다.
+  if (state.measurement) {
+    submitMeasurement();
+  } else {
+    runMeasurementAndSubmit();
+  }
+});
 
 async function measureDownload() {
   const sizes = [1_000_000, 5_000_000, 20_000_000];
-  let lastMbps = 0;
+  const samples = [];
   for (const size of sizes) {
     const start = performance.now();
     const res = await fetch(`/api/download?size=${size}`, { cache: "no-store" });
     await res.arrayBuffer();
     const elapsed = performance.now() - start;
-    lastMbps = computeThroughputMbps(size, elapsed);
+    samples.push({ size, mbps: computeThroughputMbps(size, elapsed) });
   }
-  return lastMbps;
+  // 스펙 §10: 워밍업 구간을 제외하고 마지막 2~3구간 평균을 사용한다.
+  const lastTwo = samples.slice(-2);
+  const mbps = lastTwo.reduce((sum, s) => sum + s.mbps, 0) / lastTwo.length;
+  return { mbps, samples };
 }
 
 async function measureUpload() {
   const size = 5_000_000;
   const data = new Uint8Array(size);
+  // src/handlers/download.ts의 handleDownload와 동일한 패턴: 압축으로 인한
+  // 처리량 왜곡을 막기 위해 앞부분만 실제 난수로 채우고 나머지는 반복한다.
+  crypto.getRandomValues(data.subarray(0, Math.min(size, 65536)));
+  for (let offset = 65536; offset < size; offset += 65536) {
+    data.set(data.subarray(0, Math.min(65536, size - offset)), offset);
+  }
   const start = performance.now();
   await fetch("/api/upload", { method: "POST", body: data });
   const elapsed = performance.now() - start;
@@ -165,46 +210,106 @@ async function runMeasurementAndSubmit() {
 
   try {
     el("measuring-status").textContent = "다운로드 측정 중...";
-    const download_mbps = await measureDownload();
+    const download = await measureDownload();
 
     el("measuring-status").textContent = "업로드 측정 중...";
     const upload_mbps = await measureUpload();
 
     el("measuring-status").textContent = "핑/지터 측정 중...";
-    const { samples, stats } = await measurePing();
+    const { samples: pingSamples, stats } = await measurePing();
 
-    const body = {
-      lat: state.lat, lng: state.lng, accuracy_m: state.accuracy,
-      carrier: state.form.carrier,
-      dong: state.form.dong, floor: state.form.floor,
-      room: state.form.room, corridor: state.form.corridor,
-      note: state.form.note,
-      download_mbps, upload_mbps,
-      ping_ms: stats.ping_ms, jitter_ms: stats.jitter_ms,
+    // 측정 결과를 state에 보관해두면, 이후 제출이 실패(예: 통금 경계 전환으로
+    // 인한 400)해도 다시 측정할 필요 없이 제출만 재시도할 수 있다.
+    state.measurement = {
+      download_mbps: download.mbps,
+      upload_mbps,
+      ping_ms: stats.ping_ms,
+      jitter_ms: stats.jitter_ms,
       packet_loss_pct: stats.packet_loss_pct,
-      raw_samples: { ping: samples },
+      raw_samples: { ping: pingSamples, download: download.samples },
     };
 
-    const res = await fetch("/api/submit", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    hide("step-measuring");
-    show("step-done");
-    el("result-summary").textContent = res.ok
-      ? JSON.stringify(body, null, 2)
-      : `제출 실패: ${res.status}`;
+    await submitMeasurement();
   } catch (err) {
-    // 측정/제출 도중 네트워크 오류가 나도 사용자가 영구히 멈추지 않도록
-    // 재시도 버튼을 보여준다(측정 중 화면에 그대로 머무름).
+    // 측정 도중 네트워크 오류가 나도 사용자가 영구히 멈추지 않도록
+    // 재시도 버튼을 보여준다(측정 중 화면에 그대로 머무름). 이 경우는
+    // 측정 자체가 끝나지 않았으므로 처음부터 다시 측정해야 한다.
     el("measuring-status").textContent =
       "측정 중 오류 발생: 다시 시도해 주세요.";
+    state.retryAction = "measure";
     show("btn-measuring-retry");
   }
 }
 
-el("btn-measuring-retry").addEventListener("click", runMeasurementAndSubmit);
+async function submitMeasurement() {
+  hide("btn-measuring-retry");
+  el("measuring-status").textContent = "제출 중...";
+
+  const body = {
+    lat: state.lat, lng: state.lng, accuracy_m: state.accuracy,
+    carrier: state.form.carrier,
+    dong: state.form.dong, floor: state.form.floor,
+    room: state.form.room, corridor: state.form.corridor,
+    note: state.form.note,
+    ...state.measurement,
+  };
+
+  let res;
+  let resBody = null;
+  try {
+    res = await fetch("/api/submit", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    resBody = await res.json().catch(() => null);
+  } catch (err) {
+    // 제출 요청 자체가 실패(네트워크 오류)한 경우 -- 이미 측정한 값은
+    // state.measurement에 남아있으므로 재측정 없이 제출만 재시도한다.
+    el("measuring-status").textContent =
+      "제출 중 오류 발생: 다시 시도해 주세요.";
+    state.retryAction = "submit";
+    show("btn-measuring-retry");
+    return;
+  }
+
+  if (res.ok) {
+    state.measurement = null;
+    state.retryAction = null;
+    hide("step-measuring");
+    show("step-done");
+    el("result-summary").textContent = JSON.stringify(resBody, null, 2);
+    return;
+  }
+
+  const errorMessage = (resBody && typeof resBody.error === "string")
+    ? resBody.error
+    : `제출 실패 (status ${res.status})`;
+
+  if (errorMessage.includes("dong/floor/room/corridor are required when indoors")) {
+    // GPS 확인 시점(T0)과 제출 시점(T1) 사이에 통금 경계를 넘어가 서버가
+    // 실내로 재판정한 경우. 이미 측정한 값은 유지한 채 실내 폼으로 보내
+    // 동/층/호실/복도만 추가로 받는다(측정은 다시 하지 않는다).
+    if (state.form.carrier) {
+      el("input-carrier-indoor").value = state.form.carrier;
+    }
+    goToIndoorForm();
+    return;
+  }
+
+  // 그 외의 서버 거부(예: 제출 시점에 WiFi로 전환됨) -- 측정 결과는 유지한 채
+  // 제출만 재시도할 수 있는 경로를 제공한다.
+  el("measuring-status").textContent = `제출 실패: ${errorMessage}`;
+  state.retryAction = "submit";
+  show("btn-measuring-retry");
+}
+
+el("btn-measuring-retry").addEventListener("click", () => {
+  if (state.retryAction === "submit" && state.measurement) {
+    submitMeasurement();
+  } else {
+    runMeasurementAndSubmit();
+  }
+});
 
 step1CheckNetwork();

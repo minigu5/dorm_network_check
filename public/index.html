@@ -13,6 +13,7 @@
     body { max-width: 480px; margin: 0 auto; padding: 16px; font-size: 16px; }
     input, select, button { width: 100%; min-height: 44px; font-size: 16px; margin-bottom: 8px; }
     button { min-height: 48px; }
+    #indoor-validation-error { color: #c0392b; }
   </style>
 </head>
 <body>
@@ -21,6 +22,7 @@
 
     <section id="step-network">
       <p id="network-status">네트워크 확인 중...</p>
+      <button id="btn-network-retry" hidden>다시 시도</button>
     </section>
 
     <section id="step-location" hidden>
@@ -29,10 +31,10 @@
 
     <section id="step-form-indoor" hidden>
       <h2>실내 측정 정보</h2>
-      <label>동 <input id="input-dong" type="text" /></label>
-      <label>층 <input id="input-floor" type="text" /></label>
-      <label>호실 <input id="input-room" type="text" /></label>
-      <label>복도 <input id="input-corridor" type="text" /></label>
+      <label>동 <input id="input-dong" type="text" required /></label>
+      <label>층 <input id="input-floor" type="text" required /></label>
+      <label>호실 <input id="input-room" type="text" required /></label>
+      <label>복도 <input id="input-corridor" type="text" required /></label>
       <label>통신사
         <select id="input-carrier-indoor">
           <option value="SKT">SKT</option>
@@ -42,6 +44,7 @@
           <option value="기타">기타</option>
         </select>
       </label>
+      <p id="indoor-validation-error" hidden>동/층/호실/복도를 모두 입력해 주세요.</p>
       <button id="btn-indoor-next">다음</button>
     </section>
 
