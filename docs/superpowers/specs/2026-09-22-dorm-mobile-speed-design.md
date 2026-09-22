@@ -10,10 +10,13 @@
 
 ```
 [휴대폰 브라우저]
-  --GPS 권한 요청, 측정 실행, 폼 입력--> [Cloudflare Worker]
+  --1.네트워크 확인--> [Cloudflare Worker: /api/network-check]
+  --2.GPS 권한/판정, 3.분기 입력, 4.최종 확인--
+  --5.측정 실행--
+  --6.제출--> [Cloudflare Worker: /api/submit]
                                               |
-                                     asOrganization/asn 확인 (WiFi 차단)
-                                     GPS geofence + 시간대 판정
+                                     asOrganization/asn 재확인 (WiFi 차단)
+                                     GPS geofence + 시간대 재판정
                                               |
                                               v
                                         [D1 (SQLite)]
@@ -33,38 +36,71 @@
 - 분석: 로컬 Python 스크립트가 `/api/export`로 데이터를 받아 하나의 인터랙티브
   HTML 리포트(plotly)를 생성. 실시간 대시보드는 만들지 않음(필요할 때 수동 실행).
 
-## 3. WiFi 차단 (모바일 데이터만 유효)
+## 3. 사용자 플로우 (프론트엔드 단계별 진행)
+
+측정 페이지는 아래 순서를 강제한다. 실제 속도 측정(4단계)은 사용자가 최종 확인을
+누르기 전까지 시작하지 않는다.
+
+1. **접속 즉시 네트워크 확인**: 페이지 로드 시 서버에 판정을 요청해
+   WiFi/기타망인지 모바일망(SKT/KT/LGU+)인지 먼저 확인한다(판정 방법은 §4).
+   - WiFi/기타망: 화면에 "모바일 데이터로 연결 후 다시 시도하세요" 안내만 표시,
+     이후 단계 전부 비활성화.
+   - 모바일망 확인됨: 2단계로 진행.
+2. **위치 확인**: Geolocation 권한을 요청하고, 좌표를 받으면 §5의 로직으로
+   `raw_location_tag`(실내/외부/미확인)를 계산한다. 권한을 거부하면 `미확인`으로
+   처리하고 외부와 동일한 화면(3-b)으로 진행한다.
+3. **입력 화면 분기**:
+   - **3-a. 실내로 판정된 경우**: 동/층/호실/복도를 사용자가 직접 선택·입력하는
+     폼을 보여준다(필수 입력). 통신사 선택도 함께 받는다.
+   - **3-b. 외부 또는 미확인인 경우**: 동/층/호실/복도 입력란은 보여주지 않는다.
+     GPS 좌표는 자동으로 첨부되고, 사용자가 원할 때만 채울 수 있는 선택적 자유
+     설명 텍스트("예: 정문 앞 버스정류장" 등)만 제공한다. 통신사 선택은 동일하게
+     받는다.
+4. **최종 확인 화면**: 지금까지 판정/입력된 정보(네트워크 판정 결과, 위치 판정
+   결과, 3-a 또는 3-b에서 입력한 값, 통신사)를 한 화면에 요약해서 보여주고
+   사용자가 "이 정보로 측정 시작"을 눌러야 다음 단계로 넘어간다. 취소하면 3단계로
+   돌아가 값을 수정할 수 있다.
+5. **측정 실행**: 확인 후에만 §8의 다운로드/업로드/핑/지터/패킷로스 측정을
+   순서대로 실행한다.
+6. **제출**: 측정 결과 + 2~4단계에서 모은 메타데이터를 묶어 `POST /api/submit`으로
+   전송한다. 서버는 클라이언트의 판정을 그대로 신뢰하지 않고 WiFi 여부와
+   위치/시간대 판정을 **다시 한번 서버에서 재계산**해 최종 저장한다(1~2단계의
+   클라이언트 판정은 UX용 사전 안내일 뿐, 보안/정합성의 최종 근거는 항상 서버).
+
+## 4. WiFi 차단 (모바일 데이터만 유효)
 
 브라우저 JS의 Network Information API는 Android 일부에서만 동작하고 iOS Safari는
 지원하지 않아 신뢰할 수 없음. 대신 서버 측에서 Cloudflare가 요청마다 제공하는
 `request.cf.asOrganization`/`request.cf.asn` (접속 IP의 네트워크 사업자 정보)을
 사용해 판정한다.
 
-- `POST /api/submit` 요청 시 `asOrganization`이 SKT/KT/LG U+ 모바일망 ASN
-  화이트리스트에 없으면 400으로 거부.
+- `GET /api/network-check` — §3 1단계에서 페이지 로드 직후 호출. `asOrganization`
+  판정 결과(`mobile` / `wifi_or_other`)만 반환, 저장은 하지 않음. UX 안내용.
+- `POST /api/submit` — 제출 시 서버가 같은 방식으로 **다시** 판정해 `asOrganization`이
+  SKT/KT/LG U+ 모바일망 ASN 화이트리스트에 없으면 400으로 거부(최종 근거).
 - 알뜰폰(MVNO)은 망을 임대하는 원 사업자(SKT/KT/LGU+)의 ASN으로 잡히므로
   화이트리스트에 자동 포함됨.
 - 클라이언트가 이 판정을 조작할 수 없음(브라우저를 거치지 않고 Cloudflare가 실제
   접속 경로로 판정).
 - 한계: VPN 사용 등 극소수 예외 케이스는 오탐 가능. 실용적 목적상 허용.
 
-## 4. 위치(실내/외부) 판정
+## 5. 위치(실내/외부) 판정
 
-### 4-1. GPS geofence
+### 5-1. GPS geofence
 - 클라이언트에서 Geolocation API로 위도/경도/정확도(accuracy) 획득 후 서버에 전송.
 - 서버가 기숙사 건물 중심 좌표와의 거리를 계산(Haversine)하여 반경 이내면
   `raw_location_tag = 실내`, 아니면 `외부`.
 - 위치 권한 거부 시 `raw_location_tag = 미확인`으로 저장하고, 분석 시 해당 행은
   제외한다(제출 자체는 허용).
 
-### 4-2. 입소 시간대 및 GPS 관용 반경
+### 5-2. 입소 시간대 및 GPS 관용 반경
 - 입소 인정 시간대(하루 기준, KST): **23:10~07:20**(자정 경과 포함), **18:05~18:55**.
 - 입소 시간대 안에서는 기숙사 밖으로 나갈 수 없으므로 GPS 판정을 관대하게 하여
   반경 **40m**를 사용(건물 오차/학교와 기숙사가 인접해 있는 점 감안).
 - 입소 시간대 밖에서는 GPS가 실내를 가리켜도 `실내` 판정을 신뢰하지 않는다(등교
   중 잠시 들른 경우 등을 배제하기 위함).
 
-### 4-3. 최종 판정 로직 (서버, `created_at` 기준)
+### 5-3. 최종 판정 로직 (서버, `created_at` 기준)
 ```
 raw = GPS geofence 판정 (실내 / 외부 / 미확인)
 
@@ -79,14 +115,18 @@ else:
 - "외부" 데이터도 거부하지 않고 그대로 저장한다(학생마다 요금제가 달라 교내/외
   비교가 필요하므로 유효한 분석 축으로 사용).
 
-## 5. 데이터 수집 폼 필드
+## 6. 데이터 수집 폼 필드 (§3 분기에 따른 구성)
 
-- 동(dong), 층(floor), 호실(room), 복도(corridor): 사용자 텍스트 입력.
-- 통신사(carrier): 드롭다운 (SKT / KT / LG U+ / 알뜰폰 / 기타).
-- 시간(created_at), OS(User-Agent 파싱): 자동 수집.
-- 위치(lat/lng/accuracy): Geolocation API로 자동 수집(권한 필요).
+- 공통(모든 경우): 통신사(carrier) 드롭다운 (SKT / KT / LG U+ / 알뜰폰 / 기타),
+  위치(lat/lng/accuracy)는 Geolocation API로 자동 수집(권한 필요), 시간(created_at)
+  및 OS(User-Agent 파싱)는 자동 수집.
+- **실내 판정(3-a)**: 동(dong), 층(floor), 호실(room), 복도(corridor)를 사용자가
+  직접 선택·입력(필수).
+- **외부/미확인(3-b)**: 동/층/호실/복도 입력란 없음. 대신 선택적 자유 설명
+  텍스트(`note`, 필수 아님)만 제공. 위치는 GPS 좌표로 충분하다고 보고 강제 입력
+  항목을 두지 않는다.
 
-## 6. D1 스키마
+## 7. D1 스키마
 
 ```sql
 CREATE TABLE measurements (
@@ -96,7 +136,8 @@ CREATE TABLE measurements (
   raw_location_tag TEXT,             -- GPS geofence 원본 판정: 실내/외부/미확인
   is_curfew_window INTEGER,          -- 0/1
   location_tag TEXT NOT NULL,        -- 최종 판정: 실내/외부/미확인
-  dong TEXT, floor TEXT, room TEXT, corridor TEXT,
+  dong TEXT, floor TEXT, room TEXT, corridor TEXT,  -- 실내 판정일 때만 채움
+  note TEXT,                         -- 외부/미확인일 때 선택적 자유 설명
   carrier TEXT NOT NULL,             -- SKT/KT/LGU+/알뜰/기타
   network_org TEXT,                  -- Cloudflare asOrganization (감사/디버깅용)
   os TEXT,                           -- User-Agent 파싱 결과
@@ -107,22 +148,26 @@ CREATE TABLE measurements (
 );
 ```
 
-## 7. API 명세
+## 8. API 명세
 
-- `GET /` — 측정 페이지 서빙. 로드 시 자체적으로 asOrganization 판정 결과를 표시,
-  WiFi/타 네트워크로 판단되면 측정 버튼을 비활성화하고 안내 문구 표시.
+- `GET /` — 측정 페이지 서빙(정적 shell, §3 플로우를 클라이언트 JS로 진행).
+- `GET /api/network-check` — §3 1단계용. asOrganization만 판정해 `mobile` /
+  `wifi_or_other` 반환, 저장 없음.
 - `GET /api/download?size=N` — N바이트 랜덤 데이터 스트리밍(다운로드 측정용).
 - `POST /api/upload` — 요청 바디 수신 후 폐기(클라이언트가 elapsed time 측정).
 - `GET /api/ping` — 최소 응답(RTT/지터/패킷로스 측정용, 클라이언트가 반복 호출).
-- `POST /api/submit`:
-  1. `request.cf.asOrganization`으로 WiFi/타 네트워크 여부 확인 → 아니면 400 거부.
-  2. GPS 좌표로 `raw_location_tag` 계산.
+- `POST /api/submit` (§3 6단계, 사용자가 4단계 확인을 마친 뒤에만 클라이언트가
+  호출):
+  1. `request.cf.asOrganization`으로 WiFi/타 네트워크 여부 **재확인** → 아니면 400
+     거부.
+  2. GPS 좌표로 `raw_location_tag` **재계산**.
   3. 서버 시각으로 `is_curfew_window` 계산, 최종 `location_tag` 확정.
-  4. D1에 insert.
+  4. `location_tag`가 실내면 dong/floor/room/corridor 필수, 아니면 `note`만 허용.
+  5. D1에 insert.
 - `GET /api/export?key=...` — 전체 데이터 CSV/JSON 반환(분석용, 비밀 쿼리 파라미터로
   보호).
 
-## 8. 측정 알고리즘 (클라이언트 JS)
+## 9. 측정 알고리즘 (클라이언트 JS)
 
 - **다운로드**: `/api/download?size=N`을 크기를 늘려가며(1MB→5MB→20MB) 순차 fetch,
   각 구간 elapsed time으로 Mbps 계산 후 마지막 2~3구간 평균 사용(초기 TCP
@@ -137,7 +182,7 @@ CREATE TABLE measurements (
 - 측정 완료 후 각 단계 원시 배열을 `raw_samples`(JSON)에 함께 저장해 사후 재계산이
   가능하게 한다.
 
-## 9. 분석 리포트 (Python)
+## 10. 분석 리포트 (Python)
 
 - `analysis/export.py`: `/api/export`를 호출해 로컬 CSV/JSON으로 저장.
 - `analysis/analyze.py`: pandas로 데이터 적재, plotly로 다음을 포함한 인터랙티브
@@ -148,7 +193,7 @@ CREATE TABLE measurements (
   - 실내 vs 외부 비교
 - 실시간 대시보드는 범위 밖(필요할 때 수동 실행하는 정적 리포트로 충분).
 
-## 10. 배포
+## 11. 배포
 
 - Cloudflare Workers + D1, `wrangler`로 배포.
 - 배포 전 설정 필요한 값(코드 내 상수 또는 wrangler 환경변수):
@@ -158,13 +203,18 @@ CREATE TABLE measurements (
   - SKT/KT/LGU+ 모바일 ASN 화이트리스트(배포 전 실측으로 검증 필요 — 실제
     `asOrganization` 값이 예상과 다를 수 있으므로 초기 배포 후 로그로 확인해 조정)
 
-## 11. 테스트 계획
+## 12. 테스트 계획
 
-- 배포 직후 본인 기기(Android/iPhone 각 1대)로 실내(입소 시간대)/외부/WiFi 연결
-  3가지 케이스를 직접 제출해 `location_tag`와 WiFi 차단이 의도대로 동작하는지 확인.
+- 배포 직후 본인 기기(Android/iPhone 각 1대)로 다음 케이스를 직접 실행해 확인:
+  - WiFi 연결 상태로 접속 → 1단계에서 바로 차단되는지.
+  - 모바일 데이터 + 입소 시간대 + 실내 → 3-a 폼(동/층/호실/복도)이 뜨는지,
+    최종 확인 화면을 거쳐야 측정이 시작되는지, `location_tag=실내`로 저장되는지.
+  - 모바일 데이터 + 외부(또는 입소 시간대 밖) → 3-b 화면(자유 설명만)이 뜨는지,
+    `location_tag=외부`로 저장되는지.
+  - 위치 권한 거부 → 3-b로 진행하고 `location_tag=미확인`으로 저장되는지.
 - 그 후 기숙사 친구들에게 링크 공유.
 
-## 12. 범위 밖(Out of scope)
+## 13. 범위 밖(Out of scope)
 
 - 실시간 웹 대시보드(정적 리포트로 대체).
 - 패킷 단위의 정확한 손실률 측정(HTTP 기반 한계로 근사치만 제공).
