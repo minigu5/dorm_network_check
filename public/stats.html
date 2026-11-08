@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>기숙사 측정 현황</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root {
+      --text: #1c1e21;
+      --text-muted: #666b73;
+      --text-subtle: #8a8f98;
+      --border: #e2e4e8;
+      --surface: #f7f8fa;
+      --primary: #2563eb;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      /* 체감 단계 색. 색만으로 구분하지 않도록 범례·방 상세에 항상 단계 이름을 같이 쓴다. */
+      --tier-good: #0ca30c;
+      --tier-slow: #fab219;
+      --tier-bad: #d03b3b;
+      --measured: var(--primary);
+      --unmeasured: #e6e7ea;
+      --hall: #f1f2f4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 28px 16px 40px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: var(--text);
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    h1 { font-size: 22px; font-weight: 700; line-height: 1.3; margin: 0 0 4px; }
+    h2 { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+    p { margin: 0 0 12px; }
+    a { color: var(--primary); }
+
+    section { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+
+    .muted { color: var(--text-muted); font-size: 13px; }
+    .subtle { color: var(--text-subtle); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+    .hero { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 16px; }
+    .hero small { font-size: 15px; font-weight: 500; color: var(--text-muted); }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-muted); margin: 10px 0 4px; }
+    .legend span::before {
+      content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+      margin-right: 4px; vertical-align: -1px; background: var(--swatch);
+    }
+
+    .floor { margin-top: 18px; }
+    .floor-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .floor-head b { font-size: 15px; }
+    .wing { font-size: 10px; color: var(--text-subtle); margin: 6px 0 2px; }
+    .row { display: grid; grid-template-columns: repeat(11, 1fr); gap: 2px; }
+    .hall { height: 6px; background: var(--hall); border-radius: 2px; margin: 2px 0; }
+    .hall.annex { width: calc(5 / 11 * 100%); }
+
+    .cell {
+      height: 28px; border-radius: 4px; border: none; padding: 0;
+      font-size: 9px; font-family: inherit; font-variant-numeric: tabular-nums;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .facility {
+      color: #b7bac0; font-size: 8px; white-space: nowrap;
+      background: repeating-linear-gradient(45deg, #f6f7f8 0 3px, #fff 3px 6px);
+    }
+    .facility.stairs, .facility.ev { background: none; }
+    button.room { cursor: pointer; color: #9a9ea6; background: var(--unmeasured); }
+    button.room[data-state="measured"] { background: var(--measured); color: #fff; }
+    button.room[data-state="good"] { background: var(--tier-good); color: #fff; }
+    button.room[data-state="slow"] { background: var(--tier-slow); color: #0b0b0b; }
+    button.room[data-state="bad"] { background: var(--tier-bad); color: #fff; }
+    button.room[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 1px; }
+
+    .room-detail {
+      margin-top: 8px; padding: 8px 12px; font-size: 13px;
+      background: var(--surface); border-radius: var(--radius-sm);
+    }
+    .room-detail[hidden] { display: none; }
+
+    .carrier { margin-top: 14px; }
+    .carrier-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .carrier-head b { font-size: 15px; }
+    .stack { display: flex; gap: 2px; height: 26px; margin-top: 4px; }
+    .stack div {
+      border-radius: 4px; min-width: 22px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+      display: flex; align-items: center; justify-content: center; color: #fff;
+    }
+    .stack .good { background: var(--tier-good); }
+    .stack .slow { background: var(--tier-slow); color: #0b0b0b; }
+    .stack .bad { background: var(--tier-bad); }
+    .stack.pending, .stack.empty {
+      background: var(--surface); border-radius: 4px; justify-content: center; align-items: center;
+      font-size: 12px; color: var(--text-subtle);
+    }
+
+    details { margin-top: 20px; font-size: 13px; color: var(--text-muted); }
+    summary { cursor: pointer; font-weight: 600; }
+    details ul { padding-left: 18px; margin: 8px 0 0; }
+
+    #error { color: #c0392b; font-size: 13px; }
+    #error[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>기숙사 측정 현황</h1>
+    <p class="muted"><a href="/">← 측정하러 가기</a></p>
+    <p id="error" hidden>현황을 불러오지 못했어요. 잠시 후 자동으로 다시 시도합니다.</p>
+
+    <div class="hero" id="hero">–<small> / 97실 측정</small></div>
+    <p class="subtle" id="meta"></p>
+
+    <div class="legend">
+      <span style="--swatch: var(--tier-good)">거의 그대로</span>
+      <span style="--swatch: var(--tier-slow)">꽤 느려짐</span>
+      <span style="--swatch: var(--tier-bad)">매우 느림</span>
+      <span style="--swatch: var(--measured)">측정함(비교 기준 부족)</span>
+      <span style="--swatch: var(--unmeasured)">아직</span>
+    </div>
+    <p class="subtle">방을 누르면 자세히 볼 수 있어요.</p>
+
+    <div id="floors"></div>
+
+    <section>
+      <h2>통신사별로 기숙사 안에서 얼마나 느려지나</h2>
+      <p class="muted">기숙사 안 측정 하나하나를 같은 통신사의 기숙사 밖 측정과 비교했어요.</p>
+      <div id="carriers"></div>
+    </section>
+
+    <details>
+      <summary>어떻게 계산하나요?</summary>
+      <ul>
+        <li>요금제·기기마다 최고 속도가 달라서 통신사끼리 속도(Mbps)를 바로 비교하지 않아요.</li>
+        <li>대신 같은 통신사의 기숙사 밖 측정 중간값과 비교해, 다운로드·업로드·응답 속도(핑) 중 가장 많이 떨어진 항목으로 단계를 정해요.</li>
+        <li id="rule-thresholds">밖의 70% 이상이면 거의 그대로, 30~70%면 꽤 느려짐, 30% 미만이면 매우 느림이에요.</li>
+        <li id="rule-baseline">그 통신사의 밖 측정이 5건 미만이면 비교 기준이 부족해서 파란색(측정함)으로만 보여 줘요.</li>
+        <li>한 방에 측정이 여러 건이면 가운데 결과로 칠해요.</li>
+      </ul>
+    </details>
+  </main>
+
+  <script src="stats-page.js"></script>
+</body>
+</html>

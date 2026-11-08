@@ -1,3 +1,5 @@
+import type { StatsRow } from "./dormStats";
+
 export interface MeasurementInput {
   created_at: string;
   lat: number | null;
@@ -88,4 +90,16 @@ export async function exportAllMeasurements(
     .prepare("SELECT * FROM measurements ORDER BY created_at ASC")
     .all();
   return results as Record<string, unknown>[];
+}
+
+// /api/stats 집계에 필요한 컬럼만 읽는다(좌표·IP 해시·원본 샘플은 안 가져옴).
+export async function fetchStatsRows(db: D1Database): Promise<StatsRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT created_at, location_tag, carrier, room, corridor,
+              download_mbps, upload_mbps, ping_ms
+       FROM measurements`
+    )
+    .all<StatsRow>();
+  return results;
 }

@@ -8,3 +8,4 @@ __pycache__/
 analysis/measurements.csv
 analysis/report.html
 secrets/
+.superpowers/
