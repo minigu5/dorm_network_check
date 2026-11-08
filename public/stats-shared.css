@@ -1,0 +1,38 @@
+/* /stats 페이지와 홈 요약이 같이 쓰는 체감 단계 색과 통신사 막대.
+   색만으로 구분하지 않도록 범례·막대 title·방 상세에 항상 단계 이름을 같이 쓴다. */
+:root {
+  --tier-good: #0ca30c;
+  --tier-slow: #fab219;
+  --tier-bad: #d03b3b;
+  --tier-measured: #2563eb;
+  --tier-none: #e6e7ea;
+}
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: #666b73; margin: 10px 0 4px; }
+.legend span::before {
+  content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+  margin-right: 4px; vertical-align: -1px; background: var(--swatch);
+}
+
+.carrier { margin-top: 14px; }
+.carrier-head { display: flex; justify-content: space-between; align-items: baseline; }
+.carrier-head b { font-size: 15px; }
+.carrier-count { color: #8a8f98; font-size: 12px; font-variant-numeric: tabular-nums; }
+.stack { display: flex; gap: 2px; height: 26px; margin-top: 4px; }
+.stack div {
+  border-radius: 4px; min-width: 22px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.stack .good { background: var(--tier-good); }
+.stack .slow { background: var(--tier-slow); color: #0b0b0b; }
+.stack .bad { background: var(--tier-bad); }
+.stack.pending, .stack.empty {
+  background: #f7f8fa; border-radius: 4px; justify-content: center; align-items: center;
+  font-size: 12px; color: #8a8f98;
+}
+
+/* 홈 요약용 촘촘한 버전 */
+.compact .carrier { margin-top: 8px; }
+.compact .carrier-head b { font-size: 13px; }
+.compact .stack { height: 20px; }
+.compact .stack div { font-size: 11px; }

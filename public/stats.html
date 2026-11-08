@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>기숙사 측정 현황</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/stats-shared.css" />
   <style>
     :root {
       --text: #1c1e21;
@@ -15,12 +16,8 @@
       --primary: #2563eb;
       --radius-md: 12px;
       --radius-sm: 8px;
-      /* 체감 단계 색. 색만으로 구분하지 않도록 범례·방 상세에 항상 단계 이름을 같이 쓴다. */
-      --tier-good: #0ca30c;
-      --tier-slow: #fab219;
-      --tier-bad: #d03b3b;
-      --measured: var(--primary);
-      --unmeasured: #e6e7ea;
+      --measured: var(--tier-measured);
+      --unmeasured: var(--tier-none);
       --hall: #f1f2f4;
     }
 
@@ -43,18 +40,14 @@
     a { color: var(--primary); }
 
     section { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+    section.first { margin-top: 16px; padding-top: 0; border-top: none; }
 
     .muted { color: var(--text-muted); font-size: 13px; }
     .subtle { color: var(--text-subtle); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-    .hero { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 16px; }
+    .hero { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 8px; }
     .hero small { font-size: 15px; font-weight: 500; color: var(--text-muted); }
 
-    .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-muted); margin: 10px 0 4px; }
-    .legend span::before {
-      content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px;
-      margin-right: 4px; vertical-align: -1px; background: var(--swatch);
-    }
 
     .floor { margin-top: 18px; }
     .floor-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
@@ -87,21 +80,6 @@
     }
     .room-detail[hidden] { display: none; }
 
-    .carrier { margin-top: 14px; }
-    .carrier-head { display: flex; justify-content: space-between; align-items: baseline; }
-    .carrier-head b { font-size: 15px; }
-    .stack { display: flex; gap: 2px; height: 26px; margin-top: 4px; }
-    .stack div {
-      border-radius: 4px; min-width: 22px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
-      display: flex; align-items: center; justify-content: center; color: #fff;
-    }
-    .stack .good { background: var(--tier-good); }
-    .stack .slow { background: var(--tier-slow); color: #0b0b0b; }
-    .stack .bad { background: var(--tier-bad); }
-    .stack.pending, .stack.empty {
-      background: var(--surface); border-radius: 4px; justify-content: center; align-items: center;
-      font-size: 12px; color: var(--text-subtle);
-    }
 
     details { margin-top: 20px; font-size: 13px; color: var(--text-muted); }
     summary { cursor: pointer; font-weight: 600; }
@@ -117,24 +95,32 @@
     <p class="muted"><a href="/">← 측정하러 가기</a></p>
     <p id="error" hidden>현황을 불러오지 못했어요. 잠시 후 자동으로 다시 시도합니다.</p>
 
-    <div class="hero" id="hero">–<small> / 97실 측정</small></div>
-    <p class="subtle" id="meta"></p>
-
-    <div class="legend">
-      <span style="--swatch: var(--tier-good)">거의 그대로</span>
-      <span style="--swatch: var(--tier-slow)">꽤 느려짐</span>
-      <span style="--swatch: var(--tier-bad)">매우 느림</span>
-      <span style="--swatch: var(--measured)">측정함(비교 기준 부족)</span>
-      <span style="--swatch: var(--unmeasured)">아직</span>
-    </div>
-    <p class="subtle">방을 누르면 자세히 볼 수 있어요.</p>
-
-    <div id="floors"></div>
-
-    <section>
+    <section class="first">
       <h2>통신사별로 기숙사 안에서 얼마나 느려지나</h2>
       <p class="muted">기숙사 안 측정 하나하나를 같은 통신사의 기숙사 밖 측정과 비교했어요.</p>
+      <div class="legend">
+        <span style="--swatch: var(--tier-good)">거의 그대로</span>
+        <span style="--swatch: var(--tier-slow)">꽤 느려짐</span>
+        <span style="--swatch: var(--tier-bad)">매우 느림</span>
+      </div>
       <div id="carriers"></div>
+    </section>
+
+    <section>
+      <h2>어느 방이 측정했나</h2>
+      <div class="hero" id="hero">–<small> / 97실 측정</small></div>
+      <p class="subtle" id="meta"></p>
+
+      <div class="legend">
+        <span style="--swatch: var(--tier-good)">거의 그대로</span>
+        <span style="--swatch: var(--tier-slow)">꽤 느려짐</span>
+        <span style="--swatch: var(--tier-bad)">매우 느림</span>
+        <span style="--swatch: var(--measured)">측정함(비교 기준 부족)</span>
+        <span style="--swatch: var(--unmeasured)">아직</span>
+      </div>
+      <p class="subtle">방을 누르면 자세히 볼 수 있어요.</p>
+
+      <div id="floors"></div>
     </section>
 
     <details>
@@ -149,6 +135,7 @@
     </details>
   </main>
 
+  <script src="stats-shared.js"></script>
   <script src="stats-page.js"></script>
 </body>
 </html>

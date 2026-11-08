@@ -7,6 +7,7 @@
   <title>기숙사 모바일 데이터 속도 측정</title>
   <!-- favicon: Tabler Icons "brand-speedtest" (MIT, tabler.io/icons) -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/stats-shared.css" />
   <style>
     :root {
       --text: #1c1e21;
@@ -218,6 +219,19 @@
       background: #eef6fc;
     }
 
+    #stats-summary {
+      margin-top: 16px;
+      padding: 12px 14px 4px;
+      background: var(--surface);
+      border-radius: var(--radius-md);
+    }
+    #stats-summary[hidden] { display: none; }
+    .summary-head { font-size: 14px; }
+    .summary-rooms a { color: var(--primary); text-decoration: none; }
+    #stats-summary .legend { margin: 4px 0 0; }
+    #stats-summary .stack.pending { background: #fff; }
+    .summary-rooms { font-size: 13px; color: var(--text-muted); margin: 10px 0 8px; font-variant-numeric: tabular-nums; }
+
     #history-list:empty::after {
       content: "아직 측정 기록이 없어요.";
       display: block;
@@ -229,8 +243,18 @@
 <body>
   <main>
     <h1>기숙사 모바일 데이터 속도 측정</h1>
-    <p class="gps-info"><a href="/stats">어느 방이 측정했는지 현황 보기 →</a></p>
     <p id="carrier-badge" hidden></p>
+
+    <div id="stats-summary" class="compact" hidden>
+      <b class="summary-head">기숙사 안에서 얼마나 느려지나</b>
+      <div class="legend">
+        <span style="--swatch: var(--tier-good)">거의 그대로</span>
+        <span style="--swatch: var(--tier-slow)">꽤 느려짐</span>
+        <span style="--swatch: var(--tier-bad)">매우 느림</span>
+      </div>
+      <div id="summary-carriers"></div>
+      <p class="summary-rooms"><span id="summary-rooms"></span> · <a href="/stats">방별 현황 보기 →</a></p>
+    </div>
 
     <section id="step-network">
       <p id="network-status">네트워크 확인 중...</p>
@@ -300,5 +324,7 @@
 
   <script src="stats-client.js"></script>
   <script src="app.js"></script>
+  <script src="stats-shared.js"></script>
+  <script src="stats-summary.js"></script>
 </body>
 </html>
