@@ -19,6 +19,7 @@ function sampleInput(overrides: Partial<MeasurementInput> = {}): MeasurementInpu
     raw_samples: JSON.stringify({ ping: [20, 30] }),
     manual_override: 0,
     client_ip_hash: null,
+    device_id: null,
     ...overrides,
   };
 }

@@ -9,7 +9,7 @@
     .then((stats) => {
       document
         .getElementById("summary-carriers")
-        .replaceChildren(...stats.carriers.map((c) => renderCarrier(c, stats.minOutdoorBaseline)));
+        .replaceChildren(...stats.carriers.map((c) => renderCarrier(c)));
       document.getElementById("summary-rooms").textContent =
         `${stats.roomsMeasured} / ${stats.roomsTotal}실 측정 완료`;
       box.hidden = false;

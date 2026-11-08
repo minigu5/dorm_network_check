@@ -18,6 +18,7 @@ describe("handleExport", () => {
       raw_samples: "{}",
       manual_override: 0,
       client_ip_hash: null,
+      device_id: null,
     });
   });
 
@@ -36,6 +37,7 @@ describe("handleExport", () => {
     expect(text).toContain("carrier");
     expect(text).toContain("SKT");
     expect(text).toContain("manual_override");
+    expect(text).toContain("device_id");
   });
 
   it("빈 테이블일 때도 헤더 행을 반환한다", async () => {

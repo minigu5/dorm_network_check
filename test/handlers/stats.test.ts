@@ -12,6 +12,7 @@ function m(p: Partial<MeasurementInput>): MeasurementInput {
     carrier: "SKT", network_org: "SK Telecom", os: "iOS",
     download_mbps: 12.345, upload_mbps: 6.789, ping_ms: 31.5, jitter_ms: 3, packet_loss_pct: 0,
     raw_samples: null, manual_override: 0, client_ip_hash: "hash-abc",
+    device_id: "3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c",
     ...p,
   };
 }
@@ -32,9 +33,9 @@ describe("handleStats", () => {
     expect(body.rooms["301"]).toEqual({ count: 1, tier: null, worstMetric: null });
   });
 
-  it("원본 속도 값이나 IP 해시는 응답에 없다", async () => {
+  it("원본 속도 값, IP 해시, 기기 ID는 응답에 없다", async () => {
     const text = await (await handleStats(env)).text();
-    for (const leaked of ["12.345", "6.789", "31.5", "hash-abc", "SK Telecom"]) {
+    for (const leaked of ["12.345", "6.789", "31.5", "hash-abc", "SK Telecom", "3f2b8c1e"]) {
       expect(text).not.toContain(leaked);
     }
   });

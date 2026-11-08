@@ -2,12 +2,12 @@ import type { CarrierName } from "../config";
 import { DORM_FLOORS, RESIDENT_ROOMS, parseCorridorFloor, parseRoomNumber, type FloorLayout } from "./dormLayout";
 
 // 통신사끼리 절대 속도(Mbps)를 나란히 비교하면 요금제 속도 제한·기기(LTE/5G) 차이가
-// 그대로 섞여 오해를 산다. 그래서 "같은 통신사의 기숙사 밖 속도 대비 안에서 몇 %인가"로
-// 바꾸고, 다운로드·업로드·핑 중 가장 나쁜 비율로 체감 단계를 정한다(실측상 업로드가
-// 다운로드보다 훨씬 심하게 떨어져서, 평균을 내면 업로드 문제가 희석된다).
+// 그대로 섞여 오해를 산다. 같은 통신사 안에서도 요금제는 사람(기기)마다 달라서, 기준은
+// "같은 기기가 기숙사 밖에서 잰 속도"로만 잡는다(통신사 평균으로 대신 채우지 않음). 그 기기의
+// 밖 측정이 없으면 비교하지 않고 "측정함"으로만 남긴다. 단계는 다운로드·업로드·핑 중 가장
+// 나쁜 비율로 정한다(실측상 업로드가 다운로드보다 훨씬 심하게 떨어져서, 평균을 내면 업로드
+// 문제가 희석된다).
 export const TIER_THRESHOLDS = { good: 0.7, slow: 0.3 } as const;
-// 밖 측정이 이보다 적으면 기준값(중앙값)이 한두 건에 휘둘리므로 단계를 내지 않는다.
-export const MIN_OUTDOOR_BASELINE = 5;
 
 const CARRIERS: CarrierName[] = ["SKT", "KT", "LGU+"];
 
@@ -18,6 +18,7 @@ export interface StatsRow {
   created_at: string;
   location_tag: string;
   carrier: string;
+  device_id: string | null;
   room: string | null;
   corridor: string | null;
   download_mbps: number;
@@ -27,7 +28,7 @@ export interface StatsRow {
 
 export interface RoomStat {
   count: number;
-  tier: Tier | null; // null = 측정은 됐지만 그 통신사의 밖 기준이 부족
+  tier: Tier | null; // null = 측정은 됐지만 같은 기기의 밖 측정이 없음
   worstMetric: Metric | null;
 }
 
@@ -37,15 +38,14 @@ export interface DormStats {
   roomsMeasured: number;
   roomsTotal: number;
   thresholds: typeof TIER_THRESHOLDS;
-  minOutdoorBaseline: number;
   floors: Array<FloorLayout & { roomsMeasured: number; roomsTotal: number; corridorCount: number }>;
   rooms: Record<string, RoomStat>;
   carriers: Array<{
     carrier: CarrierName;
     indoorCount: number;
     outdoorCount: number;
-    baselineReady: boolean;
-    tiers: Record<Tier, number> | null;
+    comparableCount: number; // 같은 기기의 밖 측정이 있어 단계를 매긴 실내 측정 수
+    tiers: Record<Tier, number>;
   }>;
 }
 
@@ -82,20 +82,25 @@ export function computeDormStats(rows: StatsRow[]): DormStats {
   const outdoor = rows.filter((r) => r.location_tag === "외부");
   const indoor = rows.filter((r) => r.location_tag === "실내");
 
+  // 기기가 유심을 바꿨을 수도 있으니 기기 ID + 통신사로 묶는다.
+  const deviceKey = (r: StatsRow) => (r.device_id ? `${r.device_id}|${r.carrier}` : null);
+  const outdoorByDevice = new Map<string, StatsRow[]>();
+  for (const r of outdoor) {
+    const key = deviceKey(r);
+    if (key) outdoorByDevice.set(key, [...(outdoorByDevice.get(key) ?? []), r]);
+  }
   const baselines = new Map<string, Baseline>();
-  for (const c of CARRIERS) {
-    const o = outdoor.filter((r) => r.carrier === c);
-    if (o.length >= MIN_OUTDOOR_BASELINE) {
-      baselines.set(c, {
-        download: median(o.map((r) => r.download_mbps)),
-        upload: median(o.map((r) => r.upload_mbps)),
-        ping: median(o.map((r) => r.ping_ms)),
-      });
-    }
+  for (const [key, o] of outdoorByDevice) {
+    baselines.set(key, {
+      download: median(o.map((r) => r.download_mbps)),
+      upload: median(o.map((r) => r.upload_mbps)),
+      ping: median(o.map((r) => r.ping_ms)),
+    });
   }
 
   const graded = indoor.map((r) => {
-    const b = baselines.get(r.carrier);
+    const key = deviceKey(r);
+    const b = key ? baselines.get(key) : undefined;
     return { row: r, grade: b ? worstRatio(r, b) : null };
   });
 
@@ -136,14 +141,18 @@ export function computeDormStats(rows: StatsRow[]): DormStats {
 
   const carriers = CARRIERS.map((c) => {
     const mine = graded.filter((g) => g.row.carrier === c);
-    const ready = baselines.has(c);
-    const tiers = ready ? { good: 0, slow: 0, bad: 0 } : null;
-    if (tiers) for (const g of mine) tiers[tierOf(g.grade!.ratio)]++;
+    const tiers = { good: 0, slow: 0, bad: 0 };
+    let comparable = 0;
+    for (const g of mine) {
+      if (!g.grade) continue;
+      tiers[tierOf(g.grade.ratio)]++;
+      comparable++;
+    }
     return {
       carrier: c,
       indoorCount: mine.length,
       outdoorCount: outdoor.filter((r) => r.carrier === c).length,
-      baselineReady: ready,
+      comparableCount: comparable,
       tiers,
     };
   });
@@ -154,7 +163,6 @@ export function computeDormStats(rows: StatsRow[]): DormStats {
     roomsMeasured: byRoom.size,
     roomsTotal: RESIDENT_ROOMS.size,
     thresholds: TIER_THRESHOLDS,
-    minOutdoorBaseline: MIN_OUTDOOR_BASELINE,
     floors,
     rooms,
     carriers,

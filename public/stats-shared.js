@@ -15,12 +15,13 @@
     return node;
   }
 
-  function renderCarrier(c, minBaseline) {
+  // 막대는 같은 기기로 밖에서도 잰 실내 측정(comparableCount)만 센다.
+  function renderCarrier(c) {
     let bar;
-    if (!c.baselineReady) {
-      bar = h("div", { class: "stack pending", text: `밖 측정 ${c.outdoorCount} / ${minBaseline}건 · 모이면 표시` });
-    } else if (c.indoorCount === 0) {
+    if (c.indoorCount === 0) {
       bar = h("div", { class: "stack empty", text: "아직 기숙사 안 측정 없음" });
+    } else if (c.comparableCount === 0) {
+      bar = h("div", { class: "stack pending", text: "같은 폰으로 밖에서도 잰 측정이 모이면 표시" });
     } else {
       bar = h(
         "div",
@@ -33,7 +34,7 @@
     return h("div", { class: "carrier" }, [
       h("div", { class: "carrier-head" }, [
         h("b", { text: c.carrier }),
-        h("span", { class: "carrier-count", text: `안 ${c.indoorCount}건 · 밖 ${c.outdoorCount}건` }),
+        h("span", { class: "carrier-count", text: `안 ${c.indoorCount}건 중 비교 ${c.comparableCount}건` }),
       ]),
       bar,
     ]);

@@ -22,7 +22,7 @@ let latest = null;
 function roomDetailText(room, stat) {
   if (!stat) return `${room}호 · 아직 측정 없음`;
   const base = `${room}호 · 측정 ${stat.count}건`;
-  if (!stat.tier) return `${base} · 같은 통신사의 밖 측정이 부족해 아직 비교 못 함`;
+  if (!stat.tier) return `${base} · 같은 폰으로 밖에서 잰 기록이 없어 아직 비교 못 함`;
   return `${base} · ${TIER_LABEL[stat.tier]} (${METRIC_SUBJECT[stat.worstMetric]} 가장 많이 떨어짐)`;
 }
 
@@ -86,12 +86,10 @@ function render(stats) {
     ? `전체 측정 ${stats.totalMeasurements}건 · 마지막 측정 ${timeAgo(stats.lastMeasuredAt)}`
     : "아직 측정이 없어요.";
   el("floors").replaceChildren(...stats.floors.map((f) => renderFloor(f, stats)));
-  el("carriers").replaceChildren(...stats.carriers.map((c) => renderCarrier(c, stats.minOutdoorBaseline)));
+  el("carriers").replaceChildren(...stats.carriers.map((c) => renderCarrier(c)));
   const pct = (x) => Math.round(x * 100);
   el("rule-thresholds").textContent =
     `밖의 ${pct(stats.thresholds.good)}% 이상이면 거의 그대로, ${pct(stats.thresholds.slow)}~${pct(stats.thresholds.good)}%면 꽤 느려짐, ${pct(stats.thresholds.slow)}% 미만이면 매우 느림이에요.`;
-  el("rule-baseline").textContent =
-    `그 통신사의 밖 측정이 ${stats.minOutdoorBaseline}건 미만이면 비교 기준이 부족해서 파란색(측정함)으로만 보여 줘요.`;
 }
 
 async function load() {

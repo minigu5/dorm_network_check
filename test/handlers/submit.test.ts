@@ -273,6 +273,26 @@ describe("handleSubmit", () => {
     expect(rows[0].accuracy_m).toBe(999999);
   });
 
+  it("device_id(무작위 UUID)를 보내면 그대로 저장된다", async () => {
+    const deviceId = "3f2b8c1e-9a4d-4e7b-8c2a-1d5e6f7a8b9c";
+    const req = makeRequest({ ...baseBody, device_id: deviceId }, { asOrganization: "SK Telecom" });
+    const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+    expect(res.status).toBe(200);
+    const rows = await exportAllMeasurements(env.DB);
+    expect(rows[0].device_id).toBe(deviceId);
+  });
+
+  it("device_id가 없거나 UUID 형식이 아니면 거부하지 않고 null로 저장한다(구버전 app.js 캐시 대비)", async () => {
+    for (const device_id of [undefined, "not-a-uuid", 123, "x".repeat(500)]) {
+      await env.DB.exec("DELETE FROM measurements");
+      const req = makeRequest({ ...baseBody, device_id }, { asOrganization: "SK Telecom" });
+      const res = await handleSubmit(req, testEnv, new Date("2026-09-22T14:30:00.000Z"));
+      expect(res.status).toBe(200);
+      const rows = await exportAllMeasurements(env.DB);
+      expect(rows[0].device_id).toBeNull();
+    }
+  });
+
   it("동일 출처 IP로 쿨다운(120초) 내 재제출하면 429이고 저장되지 않는다", async () => {
     const ip = "1.2.3.4";
     const t0 = new Date("2026-09-22T14:30:00.000Z");

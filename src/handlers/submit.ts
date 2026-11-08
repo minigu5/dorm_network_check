@@ -25,12 +25,21 @@ interface SubmitBody {
   corridor?: string;
   note?: string;
   manual_override?: boolean;
+  device_id?: unknown;
   download_mbps: number;
   upload_mbps: number;
   ping_ms: number;
   jitter_ms: number;
   packet_loss_pct: number;
   raw_samples: unknown;
+}
+
+// app.js가 localStorage에 만들어 두는 crypto.randomUUID() 값. 형식이 다르면(구버전 app.js
+// 캐시, 임의 조작) 제출은 받되 기기 비교에서만 빠지도록 null로 저장한다.
+const DEVICE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function parseDeviceId(value: unknown): string | null {
+  return typeof value === "string" && DEVICE_ID_RE.test(value) ? value : null;
 }
 
 function jsonError(status: number, message: string): Response {
@@ -187,6 +196,7 @@ export async function handleSubmit(
     raw_samples: JSON.stringify(body.raw_samples ?? null),
     manual_override: body.manual_override === true ? 1 : 0,
     client_ip_hash: clientIpHash,
+    device_id: parseDeviceId(body.device_id),
   };
 
   try {

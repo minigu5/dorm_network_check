@@ -22,6 +22,7 @@ export interface MeasurementInput {
   raw_samples: string | null;
   manual_override: number;
   client_ip_hash: string | null;
+  device_id: string | null;
 }
 
 export async function insertMeasurement(
@@ -34,14 +35,14 @@ export async function insertMeasurement(
         created_at, lat, lng, accuracy_m, raw_location_tag, is_curfew_window,
         location_tag, room, corridor, note, carrier, network_org, os,
         download_mbps, upload_mbps, ping_ms, jitter_ms, packet_loss_pct, raw_samples,
-        manual_override, client_ip_hash
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+        manual_override, client_ip_hash, device_id
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .bind(
       m.created_at, m.lat, m.lng, m.accuracy_m, m.raw_location_tag, m.is_curfew_window,
       m.location_tag, m.room, m.corridor, m.note, m.carrier,
       m.network_org, m.os, m.download_mbps, m.upload_mbps, m.ping_ms, m.jitter_ms,
-      m.packet_loss_pct, m.raw_samples, m.manual_override, m.client_ip_hash
+      m.packet_loss_pct, m.raw_samples, m.manual_override, m.client_ip_hash, m.device_id
     )
     .run();
 }
@@ -93,10 +94,11 @@ export async function exportAllMeasurements(
 }
 
 // /api/stats 집계에 필요한 컬럼만 읽는다(좌표·IP 해시·원본 샘플은 안 가져옴).
+// device_id는 같은 기기의 안/밖 측정을 잇는 데만 쓰고 응답에는 내보내지 않는다.
 export async function fetchStatsRows(db: D1Database): Promise<StatsRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT created_at, location_tag, carrier, room, corridor,
+      `SELECT created_at, location_tag, carrier, device_id, room, corridor,
               download_mbps, upload_mbps, ping_ms
        FROM measurements`
     )

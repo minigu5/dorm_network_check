@@ -26,6 +26,7 @@ const HEADERS = [
   "raw_samples",
   "manual_override",
   "client_ip_hash",
+  "device_id",
 ];
 
 function toCsv(rows: Record<string, unknown>[]): string {

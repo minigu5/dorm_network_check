@@ -31,6 +31,25 @@ const hide = (id) => { el(id).hidden = true; };
 // 이 값의 존재 자체가 "이 브라우저의 기록"이 된다. 서버에는 보내지 않는다.
 const HISTORY_KEY = "measurement_history";
 
+// 같은 기기의 기숙사 안/밖 측정을 이어 /stats 체감 단계를 계산하려고 서버에 보내는
+// 무작위 ID(이름·전화번호와 무관한 UUID). 측정 기록과 같은 localStorage에 둬서, 기록을
+// 지우면 같이 초기화된다. 못 만들면(사생활 보호 모드, 구형 브라우저) null로 보내고
+// 그 측정은 /stats 비교에서만 빠진다.
+const DEVICE_ID_KEY = "device_id";
+
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 function loadHistory() {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
@@ -460,6 +479,7 @@ async function submitMeasurement() {
     carrier: state.carrier,
     room: state.form.room, corridor: state.form.corridor,
     note: state.form.note,
+    device_id: getDeviceId(),
     ...state.measurement,
   };
 
@@ -504,6 +524,10 @@ async function submitMeasurement() {
     hide("step-measuring");
     show("step-done");
     renderResult(entry);
+    // 같은 폰의 밖 측정이 있어야 /stats에서 우리 방이 색으로 나온다.
+    el("outdoor-nudge").hidden = !(
+      entry.branch === "indoor" && !loadHistory().some((e) => e.branch !== "indoor")
+    );
     return;
   }
 
